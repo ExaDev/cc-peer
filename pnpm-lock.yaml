@@ -33,6 +33,9 @@ importers:
       '@semantic-release/changelog':
         specifier: 7.0.0
         version: 7.0.0(semantic-release@25.0.9(typescript@6.0.3))
+      '@semantic-release/commit-analyzer':
+        specifier: 13.0.1
+        version: 13.0.1(semantic-release@25.0.9(typescript@6.0.3))
       '@semantic-release/exec':
         specifier: 7.1.0
         version: 7.1.0(semantic-release@25.0.9(typescript@6.0.3))
@@ -45,6 +48,9 @@ importers:
       '@semantic-release/npm':
         specifier: 13.1.5
         version: 13.1.5(semantic-release@25.0.9(typescript@6.0.3))
+      '@semantic-release/release-notes-generator':
+        specifier: 14.1.1
+        version: 14.1.1(semantic-release@25.0.9(typescript@6.0.3))
       '@stryker-mutator/core':
         specifier: 10.0.0
         version: 10.0.0(@types/node@26.4.1)
