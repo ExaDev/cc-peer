@@ -102,11 +102,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Every (platform, arch) pair on a standard runner image: two darwin legs, two linux, two win32 — build-sea.ts qualifies each asset name by process.platform AND process.arch so shared-OS legs cannot clobber each other's release upload, and gives win32 its .exe.
         include:
           - os: macos-latest
           - os: macos-13
           - os: ubuntu-latest
           - os: ubuntu-24.04-arm
+          - os: windows-latest
+          - os: windows-11-arm
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     permissions:
@@ -153,6 +156,8 @@ jobs:
           echo "binary-path=$BINARY_PATH" >> "$GITHUB_OUTPUT"
 
       - name: Smoke the binary
+        # bash explicitly: windows runners default to PowerShell, which has none of the backgrounding idioms this uses (git-bash ships on the image, and the win32 binary's .exe name is data, not syntax, here).
+        shell: bash
         run: |
           BINARY="${{ steps.build.outputs.binary-path }}"
           chmod +x "$BINARY"
@@ -167,4 +172,74 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "${{ steps.tag.outputs.tag }}" --clobber "${{ steps.build.outputs.binary-path }}"
+
+  mirror-github-packages:
+    name: Mirror to GitHub Packages
+    needs: release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+      # Deliberately no id-token: write — GitHub Packages has no OIDC trusted-publishing exchange, and holding id-token makes pnpm attempt (and fail) that exchange anyway, breaking its fallback to the GITHUB_TOKEN this job actually authenticates with.
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      MIRROR_NAME: "@exadev/cc-peer"
+    steps:
+      # The release tag: semantic-release computed the version at release time and the tag names it, while the triggering commit's own package.json still carries the pre-bump version.
+      - name: Resolve the release tag and version
+        id: tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          ref: ${{ steps.tag.outputs.tag }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .tool-versions
+          cache: pnpm
+          # Deliberately NOT setup-node's registry-url/scope inputs: those write an @exadev scope-to-registry mapping into .npmrc that redirects every @exadev-scoped install through GitHub Packages, which breaks `pnpm install` below (@exadev/eslint-config is a devDependency published only to the default registry).
+      - run: pnpm install --frozen-lockfile
+      - name: Configure the GitHub Packages auth token for publish only
+        # Added after install so install never sees any scope mapping; the host-scoped credential alone determines auth, and publishConfig.registry (set below) determines the publish target.
+        run: echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" >> ~/.npmrc
+      - name: Check whether this version is already mirrored
+        id: mirrored
+        # Re-running a completed release run re-runs this job for the same tag; republishing an existing version is rejected, so an already-present mirror is a skip, not a failure.
+        run: |
+          if npm view "${MIRROR_NAME}@${{ steps.tag.outputs.version }}" version --registry https://npm.pkg.github.com 2>/dev/null | grep -qx "${{ steps.tag.outputs.version }}"; then
+            echo "already=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::${MIRROR_NAME}@${{ steps.tag.outputs.version }} is already mirrored on GitHub Packages; nothing to do."
+          fi
+      - name: Build
+        if: steps.mirrored.outputs.already != 'true'
+        run: pnpm build
+      - name: Rewrite package name and registry for the GitHub Packages scope
+        # GitHub Packages requires the npm package name to be scoped to the repo owner. Rewriting the fields rather than keeping a second package.json means the mirror cannot drift from the real package's metadata. publishConfig.registry must be overridden too: it takes precedence over any registry .npmrc sets, so without this the publish silently targets registry.npmjs.org instead — GITHUB_TOKEN is not a credential that registry recognises.
+        if: steps.mirrored.outputs.already != 'true'
+        run: |
+          npm pkg set name="${MIRROR_NAME}"
+          npm pkg set publishConfig.registry="https://npm.pkg.github.com"
+      - name: Publish the mirror
+        if: steps.mirrored.outputs.already != 'true'
+        run: |
+          set +e
+          OUTPUT=$(pnpm publish --access public --no-git-checks 2>&1)
+          STATUS=$?
+          set -e
+          echo "$OUTPUT"
+          [ "$STATUS" -eq 0 ] && exit 0
+          if printf '%s' "$OUTPUT" | grep -q 'permission_denied: write_package'; then
+            echo "::notice::Skipped ${MIRROR_NAME}@${{ steps.tag.outputs.version }}: this repository is not on that GitHub package's Actions access list yet. Grant it once (a user with package admin): github.com -> Organization ExaDev -> Packages -> ${MIRROR_NAME} -> Package settings -> Manage Actions access -> add Repository \"cc-peer\" with Role \"Write\". The first release after that mirrors automatically."
+            exit 0
+          fi
+          exit "$STATUS"
 
