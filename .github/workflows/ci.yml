@@ -43,8 +43,13 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Test
-        run: pnpm test
+      - name: Test with coverage gate
+        # vitest.config.ts enforces 100% statements/branches/functions/lines: the run exits non-zero below any threshold, so this step IS the coverage gate rather than a report-only pass.
+        run: pnpm test:coverage
+
+      - name: Mutation gate
+        # stryker.config.ts enforces a 100% mutation score (thresholds.break): any surviving mutant in src/domain or src/schemas fails the build.
+        run: pnpm test:mutation
 
       - name: Build
         run: pnpm build
