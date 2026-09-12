@@ -1,12 +1,14 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createServer } from "node:http";
 import { randomBytes } from "node:crypto";
-import { z } from "zod";
 
 import type { CcPeer, PeerRef } from "../cc-peer.js";
-import { API_COMPONENT_SCHEMAS } from "./schemas.js";
-import { IdleSubscriptionRequestSchema } from "./schemas.js";
-import { SendMessageRequestSchema } from "./schemas.js";
+import {
+  apiComponentSchemas,
+  IdleSubscriptionRequestSchema,
+  SendMessageRequestSchema,
+  type ApiComponentName,
+} from "./schemas.js";
 
 /** Loopback only; this bridges onto a same-user IPC trust boundary. */
 const BIND_HOST = "127.0.0.1";
@@ -160,9 +162,7 @@ function toPeerRef(
 }
 
 function errorBody(message: string): string {
-  return JSON.stringify(
-    API_COMPONENT_SCHEMAS.ErrorResponse.parse({ error: message }),
-  );
+  return JSON.stringify({ error: message });
 }
 
 function streamEvents(
@@ -210,7 +210,7 @@ async function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
-function ref(name: keyof typeof API_COMPONENT_SCHEMAS): { $ref: string } {
+function ref(name: ApiComponentName): { $ref: string } {
   return { $ref: `#/components/schemas/${name}` };
 }
 
@@ -218,13 +218,8 @@ function ref(name: keyof typeof API_COMPONENT_SCHEMAS): { $ref: string } {
  * OpenAPI 3.1 document: hand-authored paths/operations (which Zod cannot express) with every component schema converted losslessly from the same Zod definitions the server parses request bodies with — 3.1 components are JSON Schema 2020-12, so z.toJSONSchema output embeds directly.
  */
 function openApiDocument(): Record<string, unknown> {
-  const components: Record<string, unknown> = {};
-  for (const [name, schema] of Object.entries(API_COMPONENT_SCHEMAS)) {
-    components[name] = z.toJSONSchema(schema, { target: "draft-2020-12" });
-  }
-  const jsonBody = (
-    name: keyof typeof API_COMPONENT_SCHEMAS,
-  ): Record<string, unknown> => ({
+  const components = apiComponentSchemas();
+  const jsonBody = (name: ApiComponentName): Record<string, unknown> => ({
     required: true,
     content: { "application/json": { schema: ref(name) } },
   });
