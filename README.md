@@ -51,6 +51,8 @@ peer.on("idle", (n) => console.log(`session ${n.state}`));
 await peer.stop();
 ```
 
+Every release is also mirrored to the GitHub Packages registry as `@exadev/cc-peer` (GitHub Packages requires owner-scoped names), and single-executable binaries for every platform/architecture pair ship as release assets.
+
 The REST facade (`npx cc-peer`) serves `GET /sessions`, `POST /messages`, `POST /idle-subscriptions`, `GET /events` (SSE), and a self-describing `GET /openapi.json` on loopback with a bearer token.
 
 ## Limitations
