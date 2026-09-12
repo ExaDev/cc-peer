@@ -77,4 +77,42 @@ describe("buildEnvelope", () => {
   test("validates attributes against the schema", () => {
     expect(() => buildEnvelope({ from: "not an address!" }, "x")).toThrow();
   });
+
+  test("an empty hop chain serialises without the attribute", () => {
+    const env = buildEnvelope(
+      { from: "uds:/tmp/cc-socks/1.sock", hopChain: [] },
+      "x",
+    );
+    expect(env).not.toContain("hop-chain");
+    expect(assertRoundTrips(env)).toBe(true);
+  });
+
+  test("from-name quotes are stripped on build", () => {
+    const env = buildEnvelope(
+      { from: "uds:/tmp/cc-socks/1.sock", fromName: 'say "hi"' },
+      "x",
+    );
+    expect(env).toContain('from-name="say hi"');
+  });
+
+  test("a from-only envelope parses with every other field absent", () => {
+    const env =
+      '<cross-session-message from="uds:/tmp/cc-socks/1.sock">\nbody only\n</cross-session-message>';
+    const parsed = parseEnvelope(env);
+    expect(parsed?.from).toBe("uds:/tmp/cc-socks/1.sock");
+    expect(parsed?.fromSession).toBeUndefined();
+    expect(parsed?.hopChain).toBeUndefined();
+    expect(parsed?.fromName).toBeUndefined();
+    expect(parsed?.fromMode).toBeUndefined();
+    expect(parsed?.body).toBe("body only");
+    expect(assertRoundTrips(env)).toBe(true);
+  });
+
+  test("a from-less envelope parses but cannot round-trip", () => {
+    const env = "<cross-session-message>\nanonymous\n</cross-session-message>";
+    const parsed = parseEnvelope(env);
+    expect(parsed?.from).toBeUndefined();
+    expect(parsed?.body).toBe("anonymous");
+    expect(assertRoundTrips(env)).toBe(false);
+  });
 });

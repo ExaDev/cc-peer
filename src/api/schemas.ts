@@ -113,25 +113,37 @@ function isJsonObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export function apiComponentSchemas(): Record<string, unknown> {
-  // draft-2020-12 is the default target and matches OpenAPI 3.1 components.
-  const converted: unknown = z.toJSONSchema(API_REGISTRY, {
-    uri: (id: string) => `#/components/schemas/${id}`,
-  });
-  const schemas =
-    isJsonObject(converted) && isJsonObject(converted.schemas)
-      ? converted.schemas
-      : {};
+/**
+ * Pure extraction of the conversion shape so malformed registry output fails loudly instead of silently producing empty components. Exported for direct unit coverage of every malformed-input path.
+ */
+export function componentSchemasFrom(
+  converted: unknown,
+): Record<string, unknown> {
+  if (!isJsonObject(converted)) {
+    throw new Error("zod registry conversion did not produce an object");
+  }
+  const schemas: unknown = converted.schemas;
+  if (!isJsonObject(schemas)) {
+    throw new Error("zod registry conversion produced no schemas object");
+  }
   // $schema is only valid on a root schema; OpenAPI components must omit it.
   const stripped: Record<string, unknown> = {};
   for (const [name, schema] of Object.entries(schemas)) {
-    if (isJsonObject(schema) && "$schema" in schema) {
-      const rest: Record<string, unknown> = { ...schema };
-      delete rest.$schema;
-      stripped[name] = rest;
-    } else {
-      stripped[name] = schema;
+    if (!isJsonObject(schema)) {
+      throw new Error(`component ${name} is not a JSON object`);
     }
+    const rest: Record<string, unknown> = { ...schema };
+    delete rest.$schema;
+    stripped[name] = rest;
   }
   return stripped;
+}
+
+export function apiComponentSchemas(): Record<string, unknown> {
+  // draft-2020-12 is the default target and matches OpenAPI 3.1 components.
+  return componentSchemasFrom(
+    z.toJSONSchema(API_REGISTRY, {
+      uri: (id: string) => `#/components/schemas/${id}`,
+    }),
+  );
 }

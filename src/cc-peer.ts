@@ -119,7 +119,10 @@ export class CcPeer extends EventEmitter {
     return peer;
   }
 
-  private async start(): Promise<void> {
+  /**
+   * Bind, publish key and registry, and begin listening. Public rather than private because dependency-injected construction (this constructor takes the full Deps) needs to trigger it explicitly; everyday callers use the static create(), which wires the real node adapters.
+   */
+  async start(): Promise<void> {
     const socketPath = socketPathForPid(process.pid, this.options);
     this.ownKey = {
       peerToken: randomBytes(PEER_TOKEN_BYTES).toString("hex"),
@@ -131,10 +134,11 @@ export class CcPeer extends EventEmitter {
     }
     await this.deps.keys.writeForSocket(socketPath, this.ownKey);
     await mkdir(dirname(socketPath), { recursive: true, mode: 0o700 });
-    const entry = this.buildRegistryEntry();
+    const entry = this.buildRegistryEntry(this.ownKey.procStart);
     await this.deps.registry.write(entry);
+    const ownToken = this.ownKey.peerToken;
     this.listening = await this.deps.transport.listen(socketPath, (conn) => {
-      void this.handleConnection(conn);
+      void this.handleConnection(conn, ownToken);
     });
     this.heartbeatTimer = setInterval(() => {
       void this.deps.registry.touch(process.pid).catch(() => undefined);
@@ -143,14 +147,15 @@ export class CcPeer extends EventEmitter {
     this.log(`listening as ${this.options.name ?? "unnamed"} at ${socketPath}`);
   }
 
-  private buildRegistryEntry(): RegistryEntry {
+  /** procStart is a required parameter, not read from this.ownKey: start() already guarantees a non-empty value before this is called, so the type checker enforces it rather than a runtime fallback that can never actually fire. */
+  private buildRegistryEntry(procStart: string): RegistryEntry {
     const now = this.deps.clock.nowMs();
     return {
       pid: process.pid,
       sessionId: this.options.sessionId ?? newMsgId(),
       cwd: process.cwd(),
       startedAt: now,
-      procStart: this.ownKey?.procStart ?? "",
+      procStart,
       version: "cc-peer",
       peerProtocol: 1,
       peerFeatures: ["notify_idle", "reply_across_default_dirs"],
@@ -251,10 +256,8 @@ export class CcPeer extends EventEmitter {
         timer.unref();
       });
     }
-    if (!this.pacer.tryReserve()) {
-      await this.pacedSend(socketPath, lines);
-      return;
-    }
+    // msUntilNextToken rounds the deficit up, so exactly one full token is available after the wait; tryReserve consumes it and its result cannot be false here (a retry branch would be unreachable).
+    this.pacer.tryReserve();
     await this.deps.transport.connectWrite(socketPath, lines);
   }
 
@@ -301,20 +304,20 @@ export class CcPeer extends EventEmitter {
     return match.messagingSocketPath;
   }
 
+  /** ownToken is passed explicitly rather than read from this.ownKey: the listener callback that invokes this is only ever registered after start() has set ownKey, so the parameter records that guarantee at the type level instead of a runtime guard that can never actually be false. */
   private async handleConnection(
     conn: Readonly<{
       readLines: () => AsyncIterable<string>;
     }>,
+    ownToken: string,
   ): Promise<void> {
     const lines = conn.readLines();
     const first = await lines[Symbol.asyncIterator]().next();
     if (first.done === true) return;
-    // Auth line: verified against our own peerToken when present; absent or foreign tokens fall through to the unauthenticated peer class on macOS.
-    if (this.ownKey !== undefined) {
-      const parsed: unknown = JSON.parse(first.value);
-      if (AuthLineSchema.is(parsed) && parsed.token !== this.ownKey.peerToken) {
-        this.log("inbound auth token mismatch (foreign token tolerated)");
-      }
+    // Auth line: verified against our own peerToken; absent or foreign tokens fall through to the unauthenticated peer class on macOS.
+    const parsed: unknown = JSON.parse(first.value);
+    if (AuthLineSchema.is(parsed) && parsed.token !== ownToken) {
+      this.log("inbound auth token mismatch (foreign token tolerated)");
     }
     for await (const line of lines) {
       let frame: unknown;

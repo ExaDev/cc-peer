@@ -66,7 +66,13 @@ export interface ParsedEnvelope {
 export function parseEnvelope(content: string): ParsedEnvelope | undefined {
   const match = ENVELOPE_RE.exec(content);
   if (match === null) return undefined;
-  const parsed: ParsedEnvelope = { body: match[6] ?? "" };
+  // The body is derived positionally from the validated content rather than read from a capture group: attribute grammars bar ">" and newlines, so the first ">\n" is the opening tag's end, and the regex anchor guarantees the "\n</tag>" suffix. This avoids an index access that
+  // noUncheckedIndexedAccess would type string | undefined.
+  const openingEnd = content.indexOf(">\n") + 2;
+  const closingStart = content.length - `\n</${TAG}>`.length;
+  const parsed: ParsedEnvelope = {
+    body: content.substring(openingEnd, closingStart),
+  };
   if (match[1] !== undefined) parsed.from = match[1];
   if (match[2] !== undefined) parsed.fromSession = match[2];
   if (match[3] !== undefined) parsed.hopChain = match[3].split(",");
@@ -83,9 +89,11 @@ export function parseEnvelope(content: string): ParsedEnvelope | undefined {
 export function assertRoundTrips(content: string): boolean {
   const parsed = parseEnvelope(content);
   if (parsed === undefined) return false;
+  // A from-less envelope cannot round-trip: buildEnvelope requires a from address, so rebuilding would throw rather than compare equal.
+  if (parsed.from === undefined) return false;
   const rebuilt = buildEnvelope(
     {
-      from: parsed.from ?? "",
+      from: parsed.from,
       fromSession: parsed.fromSession,
       hopChain: parsed.hopChain,
       fromName: parsed.fromName,

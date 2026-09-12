@@ -30,10 +30,9 @@ export function uploadsDir(homeDir: string, sessionId: string): string {
   return join(homeDir, ".claude", "uploads", sessionId);
 }
 
-/** Sanitise a file name the way the reference staging path does. */
+/** Sanitise a file name the way the reference staging path does. A real basename is never empty, so no empty fallback is needed. */
 function safeName(name: string): string {
-  const cleaned = name.replaceAll(/[^a-zA-Z0-9._-]/g, "_");
-  return cleaned.length > 0 ? cleaned : "attachment";
+  return name.replaceAll(/[^a-zA-Z0-9._-]/g, "_");
 }
 
 /** Stage a file into the spool, returning the wire descriptor. */
@@ -105,7 +104,7 @@ export async function materialiseAttachment(
   );
   await mkdir(dirname(dest), { recursive: true, mode: 0o700 });
   await copyFile(absolute, dest);
-  await unlink(absolute).catch(() => undefined);
+  await unlink(absolute);
   return { uploadPath: dest, mention: `@"${dest}"` };
 }
 
@@ -141,7 +140,7 @@ export async function sweepSpool(
     const path = join(dir, name);
     const info = await stat(path).catch(() => undefined);
     if (info?.isFile() === true && info.mtimeMs < cutoff) {
-      await unlink(path).catch(() => undefined);
+      await unlink(path);
     }
   }
 }
