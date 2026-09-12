@@ -30,13 +30,8 @@ const config: GlobalConfig = {
     ],
     ["@semantic-release/changelog", { changelogFile: "CHANGELOG.md" }],
     ["@semantic-release/npm", { pkgRoot: "." }],
-    [
-      "@semantic-release/git",
-      {
-        assets: ["CHANGELOG.md", "package.json", "pnpm-lock.yaml"],
-        message: "chore(release): v${nextRelease.version} [skip ci]",
-      },
-    ],
+    // @semantic-release/git is intentionally absent: its changelog commit-back
+    // pushes directly to main, which the branch ruleset refuses for any token that is not the exadev App bypasser. Re-add it together with the App-token minting in ci.yml once the App private key is available as a repo secret; until then release notes live on the GitHub release only.
     ["@semantic-release/github", { addReleases: "bottom" }],
   ],
 };
