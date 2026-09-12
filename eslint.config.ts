@@ -12,6 +12,8 @@ export default exadevConfig(
       ".turbo",
       ".stryker-tmp",
       "schemas",
+      // Plain-JS build script outside the tsconfig project include.
+      "scripts/build-sea.mjs",
     ],
   },
   {
