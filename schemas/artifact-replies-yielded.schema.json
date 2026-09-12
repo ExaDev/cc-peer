@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "const": "control"
+    },
+    "action": {
+      "type": "string",
+      "const": "artifact_replies_yielded"
+    },
+    "orig_msg_id": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "yielded": {
+      "type": "string"
+    },
+    "not_held": {
+      "type": "string"
+    },
+    "refused": {
+      "type": "string"
+    },
+    "msgV": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "msg_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "from": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "type",
+    "action",
+    "orig_msg_id",
+    "msgV",
+    "msg_id"
+  ],
+  "additionalProperties": false
+}

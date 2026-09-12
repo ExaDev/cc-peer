@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "from": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9%:_/.\\\\-]{1,300}$"
+    },
+    "fromSession": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,80}$"
+    },
+    "hopChain": {
+      "maxItems": 32,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{24}$"
+      }
+    },
+    "fromName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "fromMode": {
+      "type": "string",
+      "enum": [
+        "bypass",
+        "prompting"
+      ]
+    }
+  },
+  "required": [
+    "from"
+  ],
+  "additionalProperties": false
+}

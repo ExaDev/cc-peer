@@ -70,7 +70,8 @@
       "koffi"
     ],
     "overrides": {
-      "eslint-plugin-jsdoc": "64.3.6"
+      "eslint-plugin-jsdoc": "64.3.6",
+      "conventional-changelog-writer": "9.2.1"
     }
   },
   "devDependencies": {

@@ -31,5 +31,17 @@ export default exadevConfig(
       ],
     },
   },
+  /* Test fixtures legitimately encode raw protocol values (16-byte tokens,
+     24-hex hop ids, chain lengths); naming them would obscure the fixture. */
+  {
+    files: ["**/*.test.ts"],
+    rules: { "@typescript-eslint/no-magic-numbers": "off" },
+  },
+  /* defineSchema attaches a guard to a live Zod class instance; spread would
+     destroy the prototype, so Object.assign is the only correct tool there. */
+  {
+    files: ["src/schemas/define-schema.ts"],
+    rules: { "exadev/no-object-assign": "off" },
+  },
   eslintPluginPrettierRecommended,
 );
