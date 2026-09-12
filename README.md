@@ -42,9 +42,11 @@ peer.on("message", (m) => console.log(`${m.fromName ?? m.from}: ${m.body}`));
 peer.on("receipt", (r) => console.log(`status: ${r.status}`));
 
 const sessions = await peer.roster();
-const { msgId } = await peer.send(sessions[0]!.pid, "hello from my app");
-
-await peer.subscribeIdle(sessions[0]!.pid);
+const first = sessions.find((s) => s.name === "claude");
+if (first !== undefined) {
+  const { msgId } = await peer.send({ pid: first.pid }, "hello from my app");
+  await peer.subscribeIdle({ pid: first.pid });
+}
 peer.on("idle", (n) => console.log(`session ${n.state}`));
 
 // …later
