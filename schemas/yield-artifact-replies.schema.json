@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "const": "control"
+    },
+    "action": {
+      "type": "string",
+      "const": "yield_artifact_replies"
+    },
+    "from": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "msg_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "session_id": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "slugs": {
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 128
+      }
+    },
+    "reason": {
+      "default": "claim",
+      "type": "string",
+      "enum": [
+        "resume",
+        "claim"
+      ]
+    },
+    "sent_at": {
+      "type": "number"
+    },
+    "claimed_at": {
+      "type": "number"
+    },
+    "requester": {
+      "type": "object",
+      "properties": {
+        "cwd": {
+          "type": "string"
+        },
+        "tmux": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "msgV": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    }
+  },
+  "required": [
+    "type",
+    "action",
+    "from",
+    "msg_id",
+    "session_id",
+    "slugs",
+    "reason",
+    "sent_at",
+    "msgV"
+  ],
+  "additionalProperties": false
+}
