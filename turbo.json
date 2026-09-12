@@ -1,0 +1,20 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "tasks": {
+    "_build": {
+      "dependsOn": ["^_build"],
+      "inputs": ["$TURBO_DEFAULT$", "!src/**/*.test.ts"],
+      "outputs": ["dist/**"]
+    },
+    "_lint": {
+      "dependsOn": ["^_lint"],
+      "inputs": ["$TURBO_DEFAULT$", ".eslintcache"],
+      "outputs": [".eslintcache"]
+    },
+    "_typecheck": {
+      "dependsOn": ["^_typecheck", "_build"],
+      "inputs": ["$TURBO_DEFAULT$"],
+      "outputs": [".tsbuildinfo"]
+    }
+  }
+}

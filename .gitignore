@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.tsbuildinfo
+.eslintcache
+.turbo/
+.tsdown/
+coverage/
+.stryker-tmp/
+reports/
+.DS_Store
+*.tgz
+.env

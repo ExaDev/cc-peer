@@ -1,0 +1,107 @@
+{
+  "name": "cc-peer",
+  "version": "0.0.0",
+  "description": "Communicate with local Claude Code instances over their native cross-session peer messaging: send and receive messages, register as a named discoverable peer, receipts, idle subscriptions, and a REST facade via `npx cc-peer`.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Joseph Mearman <joseph@mearman.co.uk>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ExaDev/cc-peer.git"
+  },
+  "homepage": "https://github.com/ExaDev/cc-peer#readme",
+  "bugs": {
+    "url": "https://github.com/ExaDev/cc-peer/issues"
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "bin": {
+    "cc-peer": "./dist/bin/cc-peer.mjs"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/cc-peer.d.mts",
+        "default": "./dist/cc-peer.mjs"
+      },
+      "require": {
+        "types": "./dist/cc-peer.d.cts",
+        "default": "./dist/cc-peer.cjs"
+      }
+    },
+    "./schemas/*.schema.json": "./schemas/*.schema.json",
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/cc-peer.cjs",
+  "types": "./dist/cc-peer.d.mts",
+  "files": [
+    "dist",
+    "schemas",
+    "docs"
+  ],
+  "publishConfig": {
+    "provenance": true,
+    "access": "public"
+  },
+  "scripts": {
+    "build": "turbo run _build",
+    "_build": "tsdown && tsx scripts/generate-json-schema.ts",
+    "lint": "turbo run _lint",
+    "_lint": "eslint . --cache",
+    "typecheck": "turbo run _typecheck",
+    "_typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:mutation": "stryker run",
+    "prepublishOnly": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && publint && attw --pack",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "zod": "4.5.4"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@anthropic-ai/claude-code",
+      "esbuild",
+      "protobufjs",
+      "koffi"
+    ],
+    "overrides": {
+      "eslint-plugin-jsdoc": "64.3.6"
+    }
+  },
+  "devDependencies": {
+    "@anthropic-ai/claude-code": "2.1.261",
+    "@arethetypeswrong/cli": "0.18.5",
+    "@commitlint/config-conventional": "21.2.2",
+    "@commitlint/types": "21.2.0",
+    "@exadev/eslint-config": "2.11.0",
+    "@semantic-release/changelog": "7.0.0",
+    "@semantic-release/exec": "7.1.0",
+    "@semantic-release/git": "11.0.1",
+    "@semantic-release/github": "12.0.9",
+    "@semantic-release/npm": "13.1.5",
+    "@stryker-mutator/core": "10.0.0",
+    "@stryker-mutator/vitest-runner": "10.0.0",
+    "@types/node": "26.4.1",
+    "commitlint": "21.2.2",
+    "eslint": "10.10.0",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-prettier": "5.5.6",
+    "globals": "17.12.0",
+    "husky": "9.1.7",
+    "jiti": "2.7.0",
+    "lint-staged": "17.5.0",
+    "prettier": "3.9.6",
+    "publint": "0.3.24",
+    "semantic-release": "25.0.9",
+    "tsdown": "0.23.0",
+    "tsx": "4.23.13",
+    "turbo": "2.10.12",
+    "typescript": "6.0.3",
+    "vitest": "5.0.0"
+  }
+}
