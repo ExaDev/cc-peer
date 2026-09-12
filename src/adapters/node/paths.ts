@@ -7,10 +7,14 @@ export interface PathConfig {
   socketDir?: string;
 }
 
-/** Candidate socket directories, in the order the reference client accepts them. */
+/**
+ * Candidate socket directories, in the order the reference client accepts
+ * them. The tuple return type guarantees at least one candidate exists, so
+ * callers can index [0] without a fallback branch.
+ */
 export function socketDirCandidates(
   config: Readonly<PathConfig> = {},
-): string[] {
+): [string, ...string[]] {
   if (config.socketDir !== undefined) return [config.socketDir];
   // /tmp/cc-socks and /private/tmp/cc-socks (its realpath on macOS), plus the
   // XDG runtime and Termux variants the reference client also accepts.
@@ -30,8 +34,7 @@ export function socketPathForPid(
   pid: number,
   config: Readonly<PathConfig> = {},
 ): string {
-  const dir = socketDirCandidates(config)[0] ?? "/tmp/cc-socks";
-  return `${dir}/${pid.toString()}.sock`;
+  return `${socketDirCandidates(config)[0]}/${pid.toString()}.sock`;
 }
 
 export function registryFilePath(
@@ -54,7 +57,9 @@ export function keyFilePath(
 }
 
 export function pidFromSocketPath(socketPath: string): number {
-  const base = socketPath.split("/").at(-1) ?? "";
+  // substring after the final slash: split().at(-1) would need an
+  // unreachable empty-array fallback.
+  const base = socketPath.substring(socketPath.lastIndexOf("/") + 1);
   const pid = Number.parseInt(base.replace(/\.sock$/, ""), 10);
   return Number.isNaN(pid) ? 0 : pid;
 }

@@ -1,26 +1,30 @@
-import { type ChildProcess, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 
 import type { ProcInfo } from "../../ports/proc-info.js";
+
+/**
+ * The errno code of an unknown throwable: Node's process.kill throws a SystemError carrying a string code, but a defensive caller may hand us anything, so the narrowing is explicit rather than assumed. Exported for direct unit coverage of every narrowing side.
+ */
+export function errnoOf(error: unknown): string {
+  if (
+    error instanceof Error &&
+    "code" in error &&
+    typeof error.code === "string"
+  ) {
+    return error.code;
+  }
+  return "";
+}
 
 export class PsProcInfo implements ProcInfo {
   async alive(pid: number): Promise<boolean> {
     // Signal 0 is an existence probe: no throw means the pid is live; EPERM means it exists but belongs to another user (still live); ESRCH is gone.
-    const errno = (error: unknown): string => {
-      if (
-        error instanceof Error &&
-        "code" in error &&
-        typeof error.code === "string"
-      ) {
-        return error.code;
-      }
-      return "";
-    };
     return new Promise<boolean>((resolve) => {
       try {
         process.kill(pid, 0);
         resolve(true);
       } catch (error) {
-        resolve(errno(error) === "EPERM");
+        resolve(errnoOf(error) === "EPERM");
       }
     });
   }
@@ -48,18 +52,12 @@ export class PsProcInfo implements ProcInfo {
     const existing = this.inFlight.get(pid);
     if (existing !== undefined) return existing;
     const promise = new Promise<string | undefined>((resolve) => {
-      let child: ChildProcess;
-      try {
-        child = spawn("ps", ["-o", "lstart=", "-p", String(pid)], {
-          env: { ...process.env, LC_ALL: "C", TZ: "UTC" },
-          stdio: ["ignore", "pipe", "ignore"],
-        });
-      } catch {
-        resolve(undefined);
-        return;
-      }
+      const child = spawn("ps", ["-o", "lstart=", "-p", String(pid)], {
+        env: { ...process.env, LC_ALL: "C", TZ: "UTC" },
+        stdio: ["ignore", "pipe", "ignore"],
+      });
       let out = "";
-      child.stdout?.on("data", (chunk: Buffer) => {
+      child.stdout.on("data", (chunk: Buffer) => {
         out += chunk.toString("utf8");
       });
       child.on("error", () => {

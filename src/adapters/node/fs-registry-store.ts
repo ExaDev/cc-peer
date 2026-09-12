@@ -6,7 +6,7 @@ import {
   unlink,
   writeFile,
 } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
 
 import type { RegistryStore } from "../../ports/registry-store.js";
 import type { RegistryEntry } from "../../schemas/registry.js";
@@ -77,8 +77,4 @@ export class FsRegistryStore implements RegistryStore {
   async remove(pid: number): Promise<void> {
     await unlink(registryFilePath(pid, this.config)).catch(() => undefined);
   }
-}
-
-export function registryFilesDir(config: Readonly<PathConfig> = {}): string {
-  return join(sessionsDir(config));
 }

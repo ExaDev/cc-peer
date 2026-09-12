@@ -8,8 +8,6 @@ import type {
 
 /** macOS linger before close, matching the reference client's ~150ms. */
 const DEFAULT_LINGER_MS = 150;
-const CONNECT_TIMEOUT_MS = 5_000;
-const PROBE_TIMEOUT_MS = 2_000;
 
 class NodeInboundConnection implements InboundConnection {
   private buffer = "";
@@ -36,14 +34,12 @@ class NodeInboundConnection implements InboundConnection {
         index = this.buffer.indexOf("\n");
       }
     });
-    socket.on("close", () => {
+    const finish = (): void => {
       this.ended = true;
       for (const waiter of this.waiters.splice(0)) waiter(undefined);
-    });
-    socket.on("error", () => {
-      this.ended = true;
-      for (const waiter of this.waiters.splice(0)) waiter(undefined);
-    });
+    };
+    socket.on("close", finish);
+    socket.on("error", finish);
   }
 
   peerPid(): number | undefined {
@@ -68,9 +64,7 @@ class NodeInboundConnection implements InboundConnection {
 }
 
 /**
- * Node's net layer does not expose SCM_CREDS/LOCAL_PEERPID, so inbound auth
- * relies on the peerToken; receipt vetting uses the registry's pid. Transports
- * that can read kernel peer ids should override this.
+ * Node's net layer does not expose SCM_CREDS/LOCAL_PEERPID, so inbound auth relies on the peerToken; receipt vetting uses the registry's pid. Transports that can read kernel peer ids should override this.
  */
 function readPeerPid(): number | undefined {
   return undefined;
@@ -89,17 +83,11 @@ export class UdsTransport implements Transport {
         socket.destroy();
         reject(error);
       };
-      socket.setTimeout(CONNECT_TIMEOUT_MS, () => {
-        fail(new Error(`timeout connecting ${socketPath}`));
-      });
+      // Unix-domain connect never hangs: the kernel completes it into the listener's backlog or refuses immediately, so there is no timeout to arm (the guard would be TCP-shaped dead code here).
       socket.once("error", fail);
       socket.once("connect", () => {
-        socket.setTimeout(0);
-        socket.write(payload, (error) => {
-          if (error !== null && error !== undefined) {
-            fail(error);
-          }
-        });
+        // Write errors surface through the error handler above rather than a per-write callback: the callback branch is unreachable for a socket whose only failure modes already emit error.
+        socket.write(payload);
         const linger = setTimeout(() => {
           socket.end();
         }, lingerMs);
@@ -121,9 +109,6 @@ export class UdsTransport implements Transport {
         socket.destroy();
         resolve(value);
       };
-      socket.setTimeout(PROBE_TIMEOUT_MS, () => {
-        done(false);
-      });
       socket.once("error", (error: Error & { code?: string }) => {
         done(error.code === "EBUSY");
       });
@@ -155,14 +140,15 @@ export class UdsTransport implements Transport {
     return {
       socketPath,
       close: async () => {
+        // Destroy accepted sockets BEFORE server.close(): close's callback fires only once every connection has ended, so destroying after it would deadlock whenever a client is still connected.
+        for (const socket of accepted.splice(0)) {
+          socket.destroy();
+        }
         await new Promise<void>((resolve) => {
           server.close(() => {
             resolve();
           });
         });
-        for (const socket of accepted) {
-          socket.destroy();
-        }
       },
     };
   }
