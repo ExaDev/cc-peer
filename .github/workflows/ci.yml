@@ -78,9 +78,19 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # The changelog commit-back pushes directly to main, which the branch ruleset refuses for the workflow token. Mint an installation token for the exadev App (the ruleset's permitted bypasser) instead.
+      - name: Generate ExaDev App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ExaDev
+          repositories: cc-peer
+
       - name: Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           # Explicitly blank: OIDC trusted publishing must be the only credential path.
           NODE_AUTH_TOKEN: ""
           HUSKY: "0"
