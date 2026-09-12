@@ -6,7 +6,7 @@ const config: GlobalConfig = {
   branches: ["main"],
   plugins: [
     [
-      "semantic-release/commit-analyzer",
+      "@semantic-release/commit-analyzer",
       {
         preset: "conventionalcommits",
         releaseRules: [
@@ -25,7 +25,7 @@ const config: GlobalConfig = {
       },
     ],
     [
-      "semantic-release/release-notes-generator",
+      "@semantic-release/release-notes-generator",
       { preset: "conventionalcommits" },
     ],
     ["@semantic-release/changelog", { changelogFile: "CHANGELOG.md" }],
