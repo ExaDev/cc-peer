@@ -68,13 +68,70 @@ export const ErrorResponseSchema = defineSchema(
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
 
 /**
- * The schemas that become OpenAPI 3.1 components. OpenAPI 3.1 component schemas are JSON Schema 2020-12, so z.toJSONSchema with that target converts each definition losslessly; ids come from .meta() so components are named and reusable rather than inlined per-operation.
+ * The schemas that become OpenAPI 3.1 components. A dedicated registry (rather than the global one) keeps conversion scoped to exactly these definitions: z.toJSONSchema(registry) emits every named schema once with interlinked refs, and the uri mapper rewrites them into OpenAPI's pointer form. OpenAPI 3.1 component schemas are JSON Schema 2020-12, so the conversion is lossless — the same definitions parse HTTP bodies at runtime, so document and validation cannot drift.
  */
-export const API_COMPONENT_SCHEMAS = {
-  PeerTarget: PeerTargetSchema,
-  SendMessageRequest: SendMessageRequestSchema,
-  IdleSubscriptionRequest: IdleSubscriptionRequestSchema,
-  SendAccepted: SendAcceptedSchema,
-  RosterResponse: RosterResponseSchema,
-  ErrorResponse: ErrorResponseSchema,
-} as const;
+/** Registry metadata shape: every entry gets an id (component name) and a title. */
+export interface ApiSchemaMeta {
+  id: string;
+  title: string;
+}
+
+export const API_REGISTRY = z.registry<ApiSchemaMeta>();
+
+API_REGISTRY.add(PeerTargetSchema, { id: "PeerTarget", title: "Peer target" });
+API_REGISTRY.add(SendMessageRequestSchema, {
+  id: "SendMessageRequest",
+  title: "Send message request",
+});
+API_REGISTRY.add(IdleSubscriptionRequestSchema, {
+  id: "IdleSubscriptionRequest",
+  title: "Idle subscription request",
+});
+API_REGISTRY.add(SendAcceptedSchema, {
+  id: "SendAccepted",
+  title: "Send accepted",
+});
+API_REGISTRY.add(RosterResponseSchema, {
+  id: "RosterResponse",
+  title: "Roster response",
+});
+API_REGISTRY.add(ErrorResponseSchema, {
+  id: "ErrorResponse",
+  title: "Error response",
+});
+
+export type ApiComponentName =
+  | "PeerTarget"
+  | "SendMessageRequest"
+  | "IdleSubscriptionRequest"
+  | "SendAccepted"
+  | "RosterResponse"
+  | "ErrorResponse";
+
+/** Convert the registry into OpenAPI 3.1 component schemas, refs as pointers. */
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function apiComponentSchemas(): Record<string, unknown> {
+  // draft-2020-12 is the default target and matches OpenAPI 3.1 components.
+  const converted: unknown = z.toJSONSchema(API_REGISTRY, {
+    uri: (id: string) => `#/components/schemas/${id}`,
+  });
+  const schemas =
+    isJsonObject(converted) && isJsonObject(converted.schemas)
+      ? converted.schemas
+      : {};
+  // $schema is only valid on a root schema; OpenAPI components must omit it.
+  const stripped: Record<string, unknown> = {};
+  for (const [name, schema] of Object.entries(schemas)) {
+    if (isJsonObject(schema) && "$schema" in schema) {
+      const rest: Record<string, unknown> = { ...schema };
+      delete rest.$schema;
+      stripped[name] = rest;
+    } else {
+      stripped[name] = schema;
+    }
+  }
+  return stripped;
+}
