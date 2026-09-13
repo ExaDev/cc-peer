@@ -136,12 +136,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # darwin and linux only, two architectures each: win32 is deliberately excluded. Node's net module has no real AF_UNIX support on Windows — its own docs state the local domain there is implemented with named pipes, which must live under \\.\pipe\ or \\?\pipe\, not an arbitrary filesystem path (see nodejs/node#55979, nodejs/node#35008). Claude Code's own peer protocol is filesystem-path UDS end to end (this repo's own docs/PROTOCOL.md), so CcPeer.start() cannot bind a listening socket on Windows at all — confirmed directly: a windows-latest and a windows-11-arm leg both built a working .exe, then crashed before printing anything at all when the smoke step ran it, because the UDS listen() call itself fails. Shipping a Windows binary would only hand users something that cannot ever open its own socket. build-sea.ts still accepts win32 as a target for anyone building locally on Windows themselves; only the CI/release matrix excludes it.
+        # Every (platform, arch) pair on a standard runner image: two darwin legs, two linux, two win32. Windows was excluded here previously (a genuine Node limitation: no filesystem-path AF_UNIX support on Windows, only named pipes — nodejs/node#55979), but CcPeer now branches to a real named pipe on native Windows (see paths.ts and win-proc-info.ts), so both legs build a working binary again. build-sea.ts qualifies each asset name by process.platform AND process.arch so shared-OS legs cannot clobber each other's release upload, and gives win32 its .exe.
         include:
           - os: macos-latest
           - os: macos-13
           - os: ubuntu-latest
           - os: ubuntu-24.04-arm
+          - os: windows-latest
+          - os: windows-11-arm
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     permissions:
