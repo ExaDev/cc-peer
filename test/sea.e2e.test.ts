@@ -15,6 +15,9 @@ const BINARY = process.env.CC_PEER_SEA_BINARY;
 /** How often waitForPort re-probes the binary's own health endpoint while it is still starting up. */
 const POLL_INTERVAL_MS = 100;
 
+/** Headroom over SEA_BINARY_STARTUP_TIMEOUT_MS for the outer test() timeout, so waitForPort's own deadline always elapses and this test's own diagnostic Error (captured stderr, process exit info) is what surfaces as the failure — not vitest's generic "Test timed out" abort, which would win the race and discard it if the two timeouts were equal. */
+const TEST_TIMEOUT_HEADROOM_MS = 10_000;
+
 async function freePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const probe = createServer();
@@ -78,8 +81,20 @@ describe.skipIf(BINARY === undefined)("packaged SEA binary", () => {
         { stdio: ["ignore", "ignore", "pipe"] },
       );
       let stderr = "";
+      let exitInfo = "process is still running";
       child.stderr.on("data", (chunk: Buffer) => {
-        stderr += chunk.toString("utf8");
+        const text = chunk.toString("utf8");
+        stderr += text;
+        // Logged as it arrives, not only from the catch block below: vitest's own test-level timeout can abort this test before that block ever runs, which would otherwise discard every diagnostic this test exists to capture.
+        console.error(`[sea-e2e stderr] ${text}`);
+      });
+      child.once("exit", (code, signal) => {
+        exitInfo = `process exited: code=${String(code)} signal=${String(signal)}`;
+        console.error(`[sea-e2e] ${exitInfo}`);
+      });
+      child.once("error", (error) => {
+        exitInfo = `process failed to spawn: ${error.message}`;
+        console.error(`[sea-e2e] ${exitInfo}`);
       });
       try {
         await waitForPort(port, SEA_BINARY_STARTUP_TIMEOUT_MS);
@@ -103,13 +118,13 @@ describe.skipIf(BINARY === undefined)("packaged SEA binary", () => {
         expect(sessions.status).toBe(200);
       } catch (error) {
         throw new Error(
-          `SEA binary smoke test failed; captured stderr:\n${stderr}`,
+          `SEA binary smoke test failed (${exitInfo}); captured stderr:\n${stderr}`,
           { cause: error },
         );
       } finally {
         child.kill();
       }
     },
-    SEA_BINARY_STARTUP_TIMEOUT_MS,
+    SEA_BINARY_STARTUP_TIMEOUT_MS + TEST_TIMEOUT_HEADROOM_MS,
   );
 });
