@@ -11,6 +11,7 @@ import { FsKeyStore } from "./adapters/node/fs-key-store.js";
 import { FsRegistryStore } from "./adapters/node/fs-registry-store.js";
 import { socketPathForPid } from "./adapters/node/paths.js";
 import { testSocketPath } from "./test/socket-path.js";
+import { REAL_PROCESS_SPAWN_TEST_TIMEOUT_MS } from "./test/timeouts.js";
 import {
   MessageTooLargeError,
   NoLiveInboxError,
@@ -244,12 +245,16 @@ describe("CcPeer dependency-injected construction", () => {
     await peer.stop();
   });
 
-  test("create without a logger starts cleanly (sink log path)", async () => {
-    const home = await tempHome();
-    const peer = await CcPeer.create(peerOptions(home));
-    expect(await peer.roster()).toEqual([]);
-    await peer.stop();
-  });
+  test(
+    "create without a logger starts cleanly (sink log path)",
+    async () => {
+      const home = await tempHome();
+      const peer = await CcPeer.create(peerOptions(home));
+      expect(await peer.roster()).toEqual([]);
+      await peer.stop();
+    },
+    REAL_PROCESS_SPAWN_TEST_TIMEOUT_MS,
+  );
 
   // This distinguishes the two branches by their genuinely different behaviour rather than by inspecting private state: ps exists on this runner and would succeed if PsProcInfo were selected instead, so this rejection only happens when WinProcInfo (backed by a real powershell.exe this machine does not have) is the one actually chosen. Skipped on real Windows: there, WinProcInfo's own powershell.exe genuinely exists and create() is expected to succeed, which is exactly what the real Windows integration test (test/windows-integration.test.ts) verifies instead.
   test.skipIf(process.platform === "win32")(
