@@ -90,9 +90,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # macos-latest and macos-latest-large are GitHub's own arm64/x64 pair for the current macOS runner generation, tracking whichever OS version that means over time — deliberately not a version-pinned label like macos-13, which GitHub fully retired on 2025-12-08 (github.blog/changelog/2025-09-19-github-actions-macos-13-runner-image-is-closing-down) and which then queued forever with no runner ever assigned, rather than failing loudly.
         include:
           - os: macos-latest
-          - os: macos-13
+          - os: macos-latest-large
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
@@ -167,10 +168,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Every (platform, arch) pair on a standard runner image: two darwin legs, two linux, two win32. Windows was excluded here previously (a genuine Node limitation: no filesystem-path AF_UNIX support on Windows, only named pipes — nodejs/node#55979), but CcPeer now branches to a real named pipe on native Windows (see paths.ts and win-proc-info.ts), so both legs build a working binary again. build-sea.ts qualifies each asset name by process.platform AND process.arch so shared-OS legs cannot clobber each other's release upload, and gives win32 its .exe.
+        # Every (platform, arch) pair on a standard runner image: two darwin legs (macos-latest-large is GitHub's current arm64/x64 counterpart to macos-latest — see verify-macos's own comment on why this isn't a version-pinned label like the retired macos-13), two linux, two win32. Windows was excluded here previously (a genuine Node limitation: no filesystem-path AF_UNIX support on Windows, only named pipes — nodejs/node#55979), but CcPeer now branches to a real named pipe on native Windows (see paths.ts and win-proc-info.ts), so both legs build a working binary again. build-sea.ts qualifies each asset name by process.platform AND process.arch so shared-OS legs cannot clobber each other's release upload, and gives win32 its .exe.
         include:
           - os: macos-latest
-          - os: macos-13
+          - os: macos-latest-large
           - os: ubuntu-latest
           - os: ubuntu-24.04-arm
           - os: windows-latest
