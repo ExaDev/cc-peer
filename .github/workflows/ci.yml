@@ -168,10 +168,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Every (platform, arch) pair on a standard runner image: two darwin legs (macos-26-intel is GitHub's current x64 counterpart to macos-latest's arm64 — see verify-macos's own comment on why this isn't macos-latest-large or the retired macos-13), two linux, two win32. Windows was excluded here previously (a genuine Node limitation: no filesystem-path AF_UNIX support on Windows, only named pipes — nodejs/node#55979), but CcPeer now branches to a real named pipe on native Windows (see paths.ts and win-proc-info.ts), so both legs build a working binary again. build-sea.ts qualifies each asset name by process.platform AND process.arch so shared-OS legs cannot clobber each other's release upload, and gives win32 its .exe.
+        # One darwin leg, two linux, two win32 — deliberately not two darwin legs. macos-26-intel (x64) is excluded here specifically, not as a runner-availability guess: Node's own SEA docs state plainly, under Platform Support, "macOS (arm64 only; x64 is not currently supported and is skipped in the tests)" (nodejs.org/api/single-executable-applications.html), and a real run confirmed it — the packaged binary SIGSEGVs within a second of starting on a genuine macos-26-intel runner (nodejs/node#62893 tracks the same crash upstream, unresolved). This is a gap in Node's own SEA feature for that platform, not something fixable here: cc-peer's regular npm package (and npx cc-peer) already works fine on Intel macOS, proved by verify-macos (macos-26-intel) running the real, unbundled module there — only the standalone SEA executable can't be built for it. Windows was excluded here previously too (a genuine Node limitation: no filesystem-path AF_UNIX support on Windows, only named pipes — nodejs/node#55979), but CcPeer now branches to a real named pipe on native Windows (see paths.ts and win-proc-info.ts), so both legs build a working binary again — an actual fix, unlike Intel macOS's SEA gap, which has none available. build-sea.ts qualifies each asset name by process.platform AND process.arch so shared-OS legs cannot clobber each other's release upload, and gives win32 its .exe.
         include:
           - os: macos-latest
-          - os: macos-26-intel
           - os: ubuntu-latest
           - os: ubuntu-24.04-arm
           - os: windows-latest
