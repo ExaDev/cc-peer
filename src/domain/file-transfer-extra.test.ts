@@ -74,7 +74,7 @@ describe("stageFile", () => {
     expect(descriptor.path).toContain("h_llo.txt");
   });
 
-  test("staged file names use 8-character sha256 and uuid prefixes, written owner-only", async () => {
+  test("staged file names use 8-character sha256 and uuid prefixes", async () => {
     const home = await tempHome();
     const source = join(home, "sized.txt");
     await writeFile(source, "prefix check content", "utf8");
@@ -82,9 +82,20 @@ describe("stageFile", () => {
     expect(basename(descriptor.path)).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{8}-sized\.txt$/,
     );
-    const info = await stat(descriptor.path);
-    expect((info.mode & 0o777).toString(8)).toBe("600");
   });
+
+  // NTFS has no POSIX permission-bit model: writeFile's mode option only ever toggles the read-only attribute there, so a real owner-only 0600 is a POSIX-only guarantee to begin with, not something Claude Code's own protocol depends on cross-platform.
+  test.skipIf(process.platform === "win32")(
+    "staged files are written owner-only",
+    async () => {
+      const home = await tempHome();
+      const source = join(home, "sized2.txt");
+      await writeFile(source, "prefix check content", "utf8");
+      const descriptor = await stageFile(home, source);
+      const info = await stat(descriptor.path);
+      expect((info.mode & 0o777).toString(8)).toBe("600");
+    },
+  );
 });
 
 describe("materialiseAttachment refusals", () => {
@@ -122,20 +133,24 @@ describe("materialiseAttachment refusals", () => {
     expect(result).toContain("not a regular file");
   });
 
-  test("an unreadable staged file reports expiry", async () => {
-    const home = await tempHome();
-    const source = join(home, "locked.txt");
-    await writeFile(source, "secret", "utf8");
-    const descriptor = await stageFile(home, source);
-    await chmod(descriptor.path, 0o000);
-    try {
-      const result = await materialiseAttachment(home, "s", descriptor);
-      expect(result).toContain("may have expired");
-    } finally {
-      await chmod(descriptor.path, 0o600);
-      await rm(descriptor.path, { force: true });
-    }
-  });
+  // NTFS has no POSIX permission-bit model: chmod(0o000) there only ever clears the read-only attribute's own opposite bit and never removes owner read access, so the file the code under test opens stays readable and the expiry branch this test means to exercise is unreachable.
+  test.skipIf(process.platform === "win32")(
+    "an unreadable staged file reports expiry",
+    async () => {
+      const home = await tempHome();
+      const source = join(home, "locked.txt");
+      await writeFile(source, "secret", "utf8");
+      const descriptor = await stageFile(home, source);
+      await chmod(descriptor.path, 0o000);
+      try {
+        const result = await materialiseAttachment(home, "s", descriptor);
+        expect(result).toContain("may have expired");
+      } finally {
+        await chmod(descriptor.path, 0o600);
+        await rm(descriptor.path, { force: true });
+      }
+    },
+  );
 
   test("a size mismatch alone fails verification even when the hash is correct for the real bytes", async () => {
     const home = await tempHome();
