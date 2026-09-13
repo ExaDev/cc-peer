@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { mkdtemp, mkdir } from "node:fs/promises";
+import { mkdtemp, mkdir, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { connect, type Socket } from "node:net";
@@ -70,13 +70,13 @@ function makePeer(
   );
 }
 
-/** Connect a raw client that speaks the wire protocol to the peer's socket. */
-async function rawClient(peer: CcPeer): Promise<Socket> {
-  const socketPath = socketPathForPid(
-    process.pid,
-    peerOptions(tempHomeOf(peer)),
-  );
-  const socket = connect(socketPath);
+/**
+ * Connect a raw client that speaks the wire protocol to the peer's socket. `socketPath` defaults to recomputing it from the peer's own options, which only matches the path the peer actually bound when the ambient platform at call time is the same one it started under — true for every caller except a test that wraps this call in withPlatform("win32", ...) to exercise a server-side isWindows() branch while the peer itself started, and is genuinely listening, on the real (POSIX) test platform. Those callers must pass the real socketPath explicitly, computed before entering the mock.
+ */
+async function rawClient(peer: CcPeer, socketPath?: string): Promise<Socket> {
+  const path =
+    socketPath ?? socketPathForPid(process.pid, peerOptions(tempHomeOf(peer)));
+  const socket = connect(path);
   await once(socket, "connect");
   return socket;
 }
@@ -117,13 +117,34 @@ describe("CcPeer dependency-injected construction", () => {
     await peer.stop();
   });
 
-  test("on Windows, start() does not create a socket directory (an un-created directory makes the bind fail)", async () => {
+  test("on Windows, start() does not create a socket directory (a named pipe has none of its own)", async () => {
     const home = await tempHome();
-    // No socketDir is created here at all, on purpose: a named pipe has no filesystem directory of its own, so if start() skipped the mkdir call (as it must on Windows), the underlying bind has no directory to fail on. This test cannot run on a real Windows kernel, so it observes the branch through the still-POSIX socket bind rejecting instead, which only happens if mkdir was genuinely skipped.
-    const peer = makePeer(home);
-    await expect(
-      withPlatform("win32", async () => peer.start()),
-    ).rejects.toThrow();
+    // A fake transport stands in for the real UdsTransport: under a mocked win32 platform, socketPathForPid returns a named-pipe-shaped string, which a real POSIX kernel would just as happily bind as a literal (garbage) relative filename in the working directory — that would prove nothing about mkdir being skipped and would litter the test run with a stray file. Asserting directly on socketPath's shape and on the directory's absence is what this test actually means to check.
+    let listenedPath: string | undefined;
+    const peer = new CcPeer(peerOptions(home), {
+      transport: {
+        listen: async (path) => {
+          listenedPath = path;
+          return Promise.resolve({
+            socketPath: path,
+            close: async () => Promise.resolve(),
+          });
+        },
+        connectWrite: async () => Promise.resolve(),
+        probe: async () => Promise.resolve(false),
+      },
+      registry: new FsRegistryStore({ homeDir: home }),
+      keys: new FsKeyStore({ homeDir: home }),
+      procInfo: {
+        alive: async () => Promise.resolve(true),
+        lstart: async () => Promise.resolve("Sat Sep 12 10:47:31 2026"),
+      },
+      clock: new SystemClock(),
+    });
+    await withPlatform("win32", async () => peer.start());
+    expect(listenedPath?.startsWith("\\\\.\\pipe\\")).toBe(true);
+    await expect(stat(join(home, "socks"))).rejects.toThrow();
+    await peer.stop();
   });
 
   test("start throws NotStartedError when procStart is unreadable", async () => {
@@ -537,12 +558,16 @@ describe("CcPeer inbound handling", () => {
     });
     await peer.start();
     tempHomeCache.set(peer, home);
+    // Computed under the real (POSIX) test platform, before the mock below: this is the path the peer actually bound, which withPlatform("win32", ...) below must not be allowed to recompute out from under it.
+    const socketPath = socketPathForPid(process.pid, {
+      socketDir: join(home, "socks"),
+    });
     const messages: unknown[] = [];
     peer.on("message", (m) => {
       messages.push(m);
     });
     await withPlatform("win32", async () => {
-      const socket = await rawClient(peer);
+      const socket = await rawClient(peer, socketPath);
       socket.write('{"type":"auth","token":"' + "0".repeat(32) + '"}\n');
       const envelope =
         '<cross-session-message from="uds:/tmp/cc-socks/9.sock">\nhi\n</cross-session-message>';
@@ -577,7 +602,7 @@ describe("CcPeer inbound handling", () => {
       messages.push(m);
     });
     await withPlatform("win32", async () => {
-      const socket = await rawClient(peer);
+      const socket = await rawClient(peer, socketPath);
       socket.write('{"type":"auth","token":"' + token + '"}\n');
       const envelope =
         '<cross-session-message from="uds:/tmp/cc-socks/9.sock">\nhi\n</cross-session-message>';

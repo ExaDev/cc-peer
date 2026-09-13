@@ -19,6 +19,7 @@ import { FsKeyStore } from "./fs-key-store.js";
 import { FsRegistryStore } from "./fs-registry-store.js";
 import { UdsTransport } from "./uds-transport.js";
 import { keyFilePath } from "./paths.js";
+import { withPlatform } from "../../test/with-platform.js";
 
 /** A pid no OS will hand out, so ps exits nonzero for it. */
 const IMPOSSIBLE_PID = 999_999_999;
@@ -90,10 +91,13 @@ describe("WinProcInfo", () => {
     expect(await info.alive(IMPOSSIBLE_PID)).toBe(false);
   });
 
-  test("lstart resolves to undefined when powershell.exe is not on this machine", async () => {
-    // Every test runner this suite actually runs on is POSIX, so powershell.exe genuinely does not exist here — this exercises the real "command not found" path, not a simulated one. Successful parsing of real PowerShell output is validated by the Windows CI job instead, which runs this class against a real powershell.exe.
-    expect(await info.lstart(process.pid)).toBeUndefined();
-  });
+  // Windows' own CreateProcess search order finds powershell.exe via the system directories even with PATH cleared, so there is no reliable way to simulate "missing binary" on a real Windows runner; skipped there rather than asserting something no longer true. Every POSIX runner this suite otherwise runs on genuinely has no powershell.exe on PATH, exercising the real ENOENT path. Successful parsing of real PowerShell output is validated by the Windows CI job's own end-to-end run of this class against a real powershell.exe.
+  test.skipIf(process.platform === "win32")(
+    "lstart resolves to undefined when powershell.exe is not on this machine",
+    async () => {
+      expect(await info.lstart(process.pid)).toBeUndefined();
+    },
+  );
 });
 
 describe("paths", () => {
@@ -122,32 +126,39 @@ describe("paths", () => {
     expect(pidFromSocketPath("\\\\.\\pipe\\cc-peer-not-a-pid")).toBe(0);
   });
 
-  test("socketPathForPid honours an explicit socketDir", () => {
-    expect(socketPathForPid(4242, { socketDir: "/custom" })).toBe(
-      "/custom/4242.sock",
-    );
-  });
-
-  test("socketPathForPid falls back to the default candidate directory with no config", () => {
-    expect(socketPathForPid(4242)).toBe(
-      `${socketDirCandidates()[0]}/4242.sock`,
-    );
-  });
-
-  test("socketPathForPid produces a named-pipe path on Windows", () => {
-    const original = process.platform;
-    Object.defineProperty(process, "platform", {
-      value: "win32",
-      configurable: true,
+  test("socketPathForPid honours an explicit socketDir on POSIX", async () => {
+    await withPlatform("darwin", () => {
+      expect(socketPathForPid(4242, { socketDir: "/custom" })).toBe(
+        "/custom/4242.sock",
+      );
     });
-    try {
+  });
+
+  test("socketPathForPid falls back to the default candidate directory on POSIX with no config", async () => {
+    await withPlatform("darwin", () => {
+      expect(socketPathForPid(4242)).toBe(
+        `${socketDirCandidates()[0]}/4242.sock`,
+      );
+    });
+  });
+
+  test("socketPathForPid produces a named-pipe path on Windows", async () => {
+    await withPlatform("win32", () => {
       expect(socketPathForPid(4242)).toBe("\\\\.\\pipe\\cc-peer-4242");
-    } finally {
-      Object.defineProperty(process, "platform", {
-        value: original,
-        configurable: true,
-      });
-    }
+    });
+  });
+
+  test("socketPathForPid namespaces the pipe name by socketDir on Windows, since a pipe has no directory of its own to keep callers apart", async () => {
+    await withPlatform("win32", () => {
+      const a = socketPathForPid(4242, { socketDir: "/tmp/cc-peer-a" });
+      const b = socketPathForPid(4242, { socketDir: "/tmp/cc-peer-b" });
+      expect(a).not.toBe(b);
+      expect(a).not.toBe("\\\\.\\pipe\\cc-peer-4242");
+      expect(a.startsWith("\\\\.\\pipe\\cc-peer-")).toBe(true);
+      expect(a.endsWith("-4242")).toBe(true);
+      expect(pidFromSocketPath(a)).toBe(4242);
+      expect(socketPathForPid(4242, { socketDir: "/tmp/cc-peer-a" })).toBe(a);
+    });
   });
 
   test("sessionsDir falls back to the real home without config", () => {
