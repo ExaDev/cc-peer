@@ -2,8 +2,6 @@ import { describe, expect, test } from "vitest";
 import {
   appendHop,
   checkChain,
-  isHopId,
-  parseChain,
   MAX_CHAIN_LENGTH_GUARD,
   MAX_SELF_HOPS,
 } from "./hop-chain.js";
@@ -12,12 +10,6 @@ const id = (n: number) => n.toString(16).padStart(24, "0");
 const ownToken = "21cc6f3d5c60ce84a36b2054";
 
 describe("hop-chain", () => {
-  test("recognises 24-hex ids", () => {
-    expect(isHopId(ownToken)).toBe(true);
-    expect(isHopId("short")).toBe(false);
-    expect(isHopId("Z".repeat(24))).toBe(false);
-  });
-
   test("appendHop trims to the grammar maximum", () => {
     const chain = Array.from({ length: 32 }, (_, i) => id(i + 1));
     const next = appendHop(chain, ownToken);
@@ -58,10 +50,5 @@ describe("hop-chain", () => {
 
   test("a single own-token occurrence is harmless (verified protocol behaviour)", () => {
     expect(checkChain([ownToken], new Set([ownToken])).admitted).toBe(true);
-  });
-
-  test("parseChain rejects malformed entries", () => {
-    expect(parseChain(`${ownToken},${ownToken}`)).toHaveLength(2);
-    expect(parseChain(`${ownToken},nothex`)).toBeUndefined();
   });
 });

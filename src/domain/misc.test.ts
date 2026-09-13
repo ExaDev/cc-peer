@@ -1,7 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { DEDUP_WINDOW_MS, varyBody } from "./dedup.js";
 import { newHopId, newMsgId } from "./ids.js";
-import { joinChain } from "./hop-chain.js";
 
 describe("dedup", () => {
   test("window is the receiver's 30s", () => {
@@ -28,18 +27,5 @@ describe("ids", () => {
 
   test("hop ids are 24 lowercase hex", () => {
     expect(newHopId()).toMatch(/^[0-9a-f]{24}$/);
-  });
-});
-
-describe("joinChain", () => {
-  test("empty chains serialise to undefined", () => {
-    expect(joinChain([])).toBeUndefined();
-    expect(joinChain(["a".repeat(24)])).toBe("a".repeat(24));
-  });
-
-  test("multiple ids join with a comma separator", () => {
-    expect(joinChain(["a".repeat(24), "b".repeat(24)])).toBe(
-      `${"a".repeat(24)},${"b".repeat(24)}`,
-    );
   });
 });

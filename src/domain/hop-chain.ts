@@ -1,40 +1,19 @@
-import {
-  count,
-  HOP_ID_HEX_LENGTH,
-  MAX_HOP_CHAIN_ENTRIES,
-} from "../schemas/limits.js";
+import { MAX_HOP_CHAIN_ENTRIES } from "../schemas/limits.js";
 
 /** Receiver-side guard default: chains longer than this drop as hop-runaway. */
 export const MAX_CHAIN_LENGTH_GUARD = 28;
 /** Receiver-side guard default: this many own-token occurrences drop as hop-loop. */
 export const MAX_SELF_HOPS = 10;
 
-const HOP_ID_RE = new RegExp(`^[0-9a-f]{${count(HOP_ID_HEX_LENGTH)}}$`);
-
-export function isHopId(value: string): boolean {
-  return HOP_ID_RE.test(value);
-}
-
-export function joinChain(ids: readonly string[]): string | undefined {
-  return ids.length > 0 ? ids.join(",") : undefined;
-}
-
-export function parseChain(serialized: string): string[] | undefined {
-  const parts = serialized.split(",");
-  return parts.every((p) => HOP_ID_RE.test(p)) ? parts : undefined;
-}
-
 /**
- * Append the relayer's own id, keeping at most the grammar-level maximum (the receiver trims to the same bound in `NDt`).
+ * Append the relayer's own id, keeping at most the grammar-level maximum (the receiver trims to the same bound in `NDt`). Always slicing (rather than branching on whether trimming is needed) means the maths alone decides the result: slicing from a non-positive start is a no-op in JS, so a chain already at or under the maximum is returned unchanged without a separate comparison to get right.
  */
 export function appendHop(
   chain: readonly string[] | undefined,
   ownId: string,
 ): string[] {
   const next = [...(chain ?? []), ownId];
-  return next.length > MAX_HOP_CHAIN_ENTRIES
-    ? next.slice(next.length - MAX_HOP_CHAIN_ENTRIES)
-    : next;
+  return next.slice(Math.max(0, next.length - MAX_HOP_CHAIN_ENTRIES));
 }
 
 export interface ChainCheck {
