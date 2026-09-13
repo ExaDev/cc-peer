@@ -196,12 +196,25 @@ jobs:
         run: |
           BINARY="${{ steps.build.outputs.binary-path }}"
           chmod +x "$BINARY"
-          # The server runs until signalled; printing its startup banner within a 5s background window is the pass condition.
           "$BINARY" --name sea-smoke > smoke.log 2>&1 &
           PID=$!
-          sleep 5
-          kill "$PID" || true
-          grep -q "REST facade listening" smoke.log
+          # Polled rather than a single fixed sleep: on Windows, start() itself spawns a real subprocess (WinProcInfo's own powershell.exe) before the server ever binds, and that spawn's latency is exactly what the test suite's own REAL_PROCESS_SPAWN_TEST_TIMEOUT_MS headroom already exists to accommodate (confirmed exceeding a naive 5s fixed wait on a real windows-11-arm runner). Exiting the loop the moment the banner appears, or the moment the process itself has died, means a healthy binary is never held to the full deadline and a genuine crash is reported immediately rather than only after the full wait.
+          DEADLINE=$(( $(date +%s) + 20 ))
+          while [ "$(date +%s)" -lt "$DEADLINE" ]; do
+            if grep -q "REST facade listening" smoke.log 2>/dev/null; then
+              kill "$PID" 2>/dev/null || true
+              exit 0
+            fi
+            if ! kill -0 "$PID" 2>/dev/null; then
+              break
+            fi
+            sleep 0.5
+          done
+          kill "$PID" 2>/dev/null || true
+          echo "::group::smoke.log"
+          cat smoke.log
+          echo "::endgroup::"
+          exit 1
 
       - name: Upload the binary as a release asset
         env:
