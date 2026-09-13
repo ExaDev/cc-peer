@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:net";
 
-import { REAL_PROCESS_SPAWN_TEST_TIMEOUT_MS } from "../src/test/timeouts.js";
+import { SEA_BINARY_STARTUP_TIMEOUT_MS } from "../src/test/timeouts.js";
 
 /**
  * Exercises the actual packaged single-executable artifact CI ships, not the in-process TS modules every other tier tests: a real, separate process, started the way an end user would, over the network. Requires CC_PEER_SEA_BINARY (the path to a binary already built by scripts/build-sea.ts) — this test does not build one itself, since a SEA build needs a Node distribution with the feature enabled and takes real time, neither of which belongs in a test's own setup.
@@ -82,7 +82,7 @@ describe.skipIf(BINARY === undefined)("packaged SEA binary", () => {
         stderr += chunk.toString("utf8");
       });
       try {
-        await waitForPort(port, REAL_PROCESS_SPAWN_TEST_TIMEOUT_MS);
+        await waitForPort(port, SEA_BINARY_STARTUP_TIMEOUT_MS);
 
         const health = await fetch(
           `http://127.0.0.1:${port.toString()}/healthz`,
@@ -110,6 +110,6 @@ describe.skipIf(BINARY === undefined)("packaged SEA binary", () => {
         child.kill();
       }
     },
-    REAL_PROCESS_SPAWN_TEST_TIMEOUT_MS,
+    SEA_BINARY_STARTUP_TIMEOUT_MS,
   );
 });
