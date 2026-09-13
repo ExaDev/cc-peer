@@ -50,6 +50,30 @@ describe("Pacer", () => {
     const pacer = new Pacer(new FakeClock(0), 3, 0.5);
     expect(pacer.msUntilNextToken()).toBe(0);
   });
+
+  test("msUntilNextToken refills from elapsed time on its own, without a prior tryReserve", () => {
+    const clock = new FakeClock(0);
+    const pacer = new Pacer(clock, 1, 1);
+    expect(pacer.tryReserve()).toBe(true);
+    clock.advance(1_000);
+    expect(pacer.msUntilNextToken()).toBe(0);
+  });
+
+  test("msUntilNextToken reports the exact wait for a fractional deficit", () => {
+    const clock = new FakeClock(0);
+    const pacer = new Pacer(clock, 1, 1);
+    expect(pacer.tryReserve()).toBe(true);
+    clock.advance(500);
+    expect(pacer.msUntilNextToken()).toBe(500);
+  });
+
+  test("refill ignores a clock that moves backward rather than draining tokens", () => {
+    const clock = new FakeClock(10_000);
+    const pacer = new Pacer(clock, 1, 1);
+    expect(pacer.tryReserve()).toBe(true);
+    clock.advance(-5_000);
+    expect(pacer.msUntilNextToken()).toBe(1_000);
+  });
 });
 
 function entry(overrides: Partial<RegistryEntry> = {}): RegistryEntry {

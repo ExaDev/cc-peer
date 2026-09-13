@@ -52,9 +52,31 @@ describe("buildEnvelope", () => {
     const body = "says </cross-session-message> then more";
     const once = escapeBody(body);
     expect(once).not.toContain("</cross-session-message>");
+    expect(once).toBe("says <\\> then more");
     expect(escapeBody(once)).toBe(once);
     const env = buildEnvelope({ from: "uds:/tmp/x.sock" }, body);
     expect(assertRoundTrips(env)).toBe(true);
+  });
+
+  test("a hop chain of multiple ids serialises with comma separators", () => {
+    const env = buildEnvelope(
+      {
+        from: "uds:/tmp/x.sock",
+        hopChain: ["21cc6f3d5c60ce84a36b2054", "aaaaaaaaaaaaaaaaaaaaaaaa"],
+      },
+      "x",
+    );
+    expect(env).toContain(
+      'hop-chain="21cc6f3d5c60ce84a36b2054,aaaaaaaaaaaaaaaaaaaaaaaa"',
+    );
+    expect(assertRoundTrips(env)).toBe(true);
+  });
+
+  test("a body carrying an unescaped closing tag in the middle fails to round-trip", () => {
+    // The greedy body capture runs to the LAST closing tag in the content, so a raw, never-escaped closing tag earlier in the body is swallowed into the parsed body rather than terminating the match early. Rebuilding re-escapes that embedded tag, producing a different string than the untrusted original — exactly the case this check exists to reject.
+    const content =
+      '<cross-session-message from="uds:/tmp/x.sock">\nfirst part </cross-session-message> more text\n</cross-session-message>';
+    expect(assertRoundTrips(content)).toBe(false);
   });
 
   test("rejects non-canonical attribute order on parse", () => {
@@ -106,6 +128,11 @@ describe("buildEnvelope", () => {
     expect(parsed?.fromMode).toBeUndefined();
     expect(parsed?.body).toBe("body only");
     expect(assertRoundTrips(env)).toBe(true);
+    // Absent fields must be omitted keys, not keys explicitly set to undefined: only a genuinely omitted key is safe to spread into a downstream object without shadowing a real value there.
+    expect(parsed === undefined ? [] : Object.keys(parsed)).toEqual([
+      "body",
+      "from",
+    ]);
   });
 
   test("a from-less envelope parses but cannot round-trip", () => {
@@ -114,5 +141,7 @@ describe("buildEnvelope", () => {
     expect(parsed?.from).toBeUndefined();
     expect(parsed?.body).toBe("anonymous");
     expect(assertRoundTrips(env)).toBe(false);
+    // "from" must be an omitted key here, not a key explicitly set to undefined, matching the same omit-vs-explicit-undefined contract as every other optional field.
+    expect(parsed === undefined ? [] : Object.keys(parsed)).toEqual(["body"]);
   });
 });

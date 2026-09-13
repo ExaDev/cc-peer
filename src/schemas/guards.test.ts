@@ -18,8 +18,12 @@ describe("attached type guards reject invalid shapes", () => {
   });
 
   test("key file token must be 32 hex", () => {
-    expect(PeerKeyFileSchema.is({ peerToken: "x", procStart: "s" })).toBe(
+    const shape = { procStart: "s", pidDomain: "darwin" };
+    expect(PeerKeyFileSchema.is({ ...shape, peerToken: "x".repeat(32) })).toBe(
       false,
+    );
+    expect(PeerKeyFileSchema.is({ ...shape, peerToken: "a".repeat(32) })).toBe(
+      true,
     );
   });
 
@@ -41,6 +45,12 @@ describe("attached type guards reject invalid shapes", () => {
     expect(EnvelopeAttributesSchema.is({ from: "a", fromMode: "wizard" })).toBe(
       false,
     );
+    expect(
+      EnvelopeAttributesSchema.is({ from: "a", fromSession: "has space" }),
+    ).toBe(false);
+    expect(
+      EnvelopeAttributesSchema.is({ from: "a", fromSession: "sess-1_2" }),
+    ).toBe(true);
   });
 });
 
