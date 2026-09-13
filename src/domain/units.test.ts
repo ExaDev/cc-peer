@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { Pacer } from "./pacer.js";
-import { filterRoster } from "./roster.js";
+import { checkEntry, filterRoster } from "./roster.js";
 import { assertRoundTrips } from "./envelope.js";
 import type { RegistryEntry } from "../schemas/registry.js";
 import type { ProcInfo } from "../ports/proc-info.js";
@@ -161,6 +161,57 @@ describe("filterRoster verdicts", () => {
 
     const deadSocket = await filterRoster([entry()], probes({ probe: false }));
     expect(deadSocket).toHaveLength(0);
+  });
+});
+
+describe("checkEntry reasons", () => {
+  test("each rejection carries its own specific reason and the rejected entry", async () => {
+    return Promise.all([
+      checkEntry(entry({ messagingSocketPath: "" }), probes({})).then(
+        (verdict) => {
+          expect(verdict).toEqual({
+            entry: entry({ messagingSocketPath: "" }),
+            admitted: false,
+            reason: "no-socket",
+          });
+        },
+      ),
+      checkEntry(entry(), probes({ ownSocketPath: "/tmp/x.sock" })).then(
+        (verdict) => {
+          expect(verdict).toEqual({
+            entry: entry(),
+            admitted: false,
+            reason: "own-socket",
+          });
+        },
+      ),
+      checkEntry(entry(), probes({ alive: false })).then((verdict) => {
+        expect(verdict).toEqual({
+          entry: entry(),
+          admitted: false,
+          reason: "pid-dead",
+        });
+      }),
+      checkEntry(entry(), probes({ lstart: "different start" })).then(
+        (verdict) => {
+          expect(verdict).toEqual({
+            entry: entry(),
+            admitted: false,
+            reason: "proc-start-mismatch",
+          });
+        },
+      ),
+      checkEntry(entry(), probes({ probe: false })).then((verdict) => {
+        expect(verdict).toEqual({
+          entry: entry(),
+          admitted: false,
+          reason: "socket-dead",
+        });
+      }),
+      checkEntry(entry(), probes({})).then((verdict) => {
+        expect(verdict).toEqual({ entry: entry(), admitted: true });
+      }),
+    ]);
   });
 });
 
