@@ -8,6 +8,7 @@ import type {
 } from "node:stream/web";
 
 import { CcPeer } from "../src/cc-peer.js";
+import { REAL_PROCESS_SPAWN_TEST_TIMEOUT_MS } from "../src/test/timeouts.js";
 import {
   createApiServer,
   hostnameOf,
@@ -80,191 +81,202 @@ describe("pure helpers", () => {
   });
 });
 
-describe("REST facade routes not covered by the happy-path test", () => {
-  test("an unknown path returns 404", async () => {
-    const home = await tempHome();
-    const p = await peer(home, "route-peer", "socks-a");
-    const server = await createApiServer(p, {});
-    const res = await fetch(`http://127.0.0.1:${server.port.toString()}/nope`, {
-      headers: { authorization: `Bearer ${server.token ?? ""}` },
-    });
-    expect(res.status).toBe(404);
-    await server.close();
-    await p.stop();
-  });
-
-  test("noToken:true serves without any authorization header", async () => {
-    const home = await tempHome();
-    const p = await peer(home, "no-token-peer", "socks-b");
-    const server = await createApiServer(p, { noToken: true });
-    expect(server.token).toBeUndefined();
-    const res = await fetch(
-      `http://127.0.0.1:${server.port.toString()}/healthz`,
-    );
-    expect(res.status).toBe(200);
-    await server.close();
-    await p.stop();
-  });
-
-  test("an explicit token option is honoured", async () => {
-    const home = await tempHome();
-    const p = await peer(home, "fixed-token-peer", "socks-c");
-    const server = await createApiServer(p, { token: "fixed-secret" });
-    expect(server.token).toBe("fixed-secret");
-    const res = await fetch(
-      `http://127.0.0.1:${server.port.toString()}/healthz`,
-      {
-        headers: { authorization: "Bearer fixed-secret" },
-      },
-    );
-    expect(res.status).toBe(200);
-    await server.close();
-    await p.stop();
-  });
-
-  test("an explicit port option is honoured", async () => {
-    const home = await tempHome();
-    const p = await peer(home, "port-peer", "socks-d");
-    const first = await createApiServer(p, { noToken: true });
-    await first.close();
-    const server = await createApiServer(p, {
-      port: first.port,
-      noToken: true,
-    });
-    expect(server.port).toBe(first.port);
-    await server.close();
-    await p.stop();
-  });
-
-  test("POST /idle-subscriptions subscribes and returns a msgId", async () => {
-    const home = await tempHome();
-    const sender = await peer(home, "idle-sender", "socks-e1");
-    const target = await peer(home, "idle-target", "socks-e2");
-    const server = await createApiServer(sender, {});
-    const res = await fetch(
-      `http://127.0.0.1:${server.port.toString()}/idle-subscriptions`,
-      {
-        method: "POST",
-        headers: {
-          authorization: `Bearer ${server.token ?? ""}`,
-          "content-type": "application/json",
+describe(
+  "REST facade routes not covered by the happy-path test",
+  { timeout: REAL_PROCESS_SPAWN_TEST_TIMEOUT_MS },
+  () => {
+    test("an unknown path returns 404", async () => {
+      const home = await tempHome();
+      const p = await peer(home, "route-peer", "socks-a");
+      const server = await createApiServer(p, {});
+      const res = await fetch(
+        `http://127.0.0.1:${server.port.toString()}/nope`,
+        {
+          headers: { authorization: `Bearer ${server.token ?? ""}` },
         },
-        body: JSON.stringify({ to: { name: "idle-target" } }),
-      },
-    );
-    expect(res.status).toBe(202);
-    const accepted = (await res.json()) as { msgId: string };
-    expect(accepted.msgId).toMatch(/^[0-9a-f-]{36}$/);
-    await server.close();
-    await sender.stop();
-    await target.stop();
-  });
+      );
+      expect(res.status).toBe(404);
+      await server.close();
+      await p.stop();
+    });
 
-  test("send by pid and by address succeed via REST", async () => {
-    const home = await tempHome();
-    const sender = await peer(home, "pid-sender", "socks-f1");
-    const target = await peer(home, "pid-target", "socks-f2");
-    const server = await createApiServer(sender, {});
-    const auth = { authorization: `Bearer ${server.token ?? ""}` };
+    test("noToken:true serves without any authorization header", async () => {
+      const home = await tempHome();
+      const p = await peer(home, "no-token-peer", "socks-b");
+      const server = await createApiServer(p, { noToken: true });
+      expect(server.token).toBeUndefined();
+      const res = await fetch(
+        `http://127.0.0.1:${server.port.toString()}/healthz`,
+      );
+      expect(res.status).toBe(200);
+      await server.close();
+      await p.stop();
+    });
 
-    const roster = await sender.roster();
-    const targetEntry = roster.find((e) => e.name === "pid-target");
-    expect(targetEntry).toBeDefined();
+    test("an explicit token option is honoured", async () => {
+      const home = await tempHome();
+      const p = await peer(home, "fixed-token-peer", "socks-c");
+      const server = await createApiServer(p, { token: "fixed-secret" });
+      expect(server.token).toBe("fixed-secret");
+      const res = await fetch(
+        `http://127.0.0.1:${server.port.toString()}/healthz`,
+        {
+          headers: { authorization: "Bearer fixed-secret" },
+        },
+      );
+      expect(res.status).toBe(200);
+      await server.close();
+      await p.stop();
+    });
 
-    const byPid = await fetch(
-      `http://127.0.0.1:${server.port.toString()}/messages`,
-      {
-        method: "POST",
-        headers: { ...auth, "content-type": "application/json" },
-        body: JSON.stringify({ to: { pid: targetEntry?.pid }, body: "by pid" }),
-      },
-    );
-    expect(byPid.status).toBe(202);
+    test("an explicit port option is honoured", async () => {
+      const home = await tempHome();
+      const p = await peer(home, "port-peer", "socks-d");
+      const first = await createApiServer(p, { noToken: true });
+      await first.close();
+      const server = await createApiServer(p, {
+        port: first.port,
+        noToken: true,
+      });
+      expect(server.port).toBe(first.port);
+      await server.close();
+      await p.stop();
+    });
 
-    const byAddress = await fetch(
-      `http://127.0.0.1:${server.port.toString()}/messages`,
-      {
-        method: "POST",
-        headers: { ...auth, "content-type": "application/json" },
-        body: JSON.stringify({
-          to: { address: targetEntry?.messagingSocketPath },
-          body: "by address",
-        }),
-      },
-    );
-    expect(byAddress.status).toBe(202);
+    test("POST /idle-subscriptions subscribes and returns a msgId", async () => {
+      const home = await tempHome();
+      const sender = await peer(home, "idle-sender", "socks-e1");
+      const target = await peer(home, "idle-target", "socks-e2");
+      const server = await createApiServer(sender, {});
+      const res = await fetch(
+        `http://127.0.0.1:${server.port.toString()}/idle-subscriptions`,
+        {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${server.token ?? ""}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ to: { name: "idle-target" } }),
+        },
+      );
+      expect(res.status).toBe(202);
+      const accepted = (await res.json()) as { msgId: string };
+      expect(accepted.msgId).toMatch(/^[0-9a-f-]{36}$/);
+      await server.close();
+      await sender.stop();
+      await target.stop();
+    });
 
-    await server.close();
-    await sender.stop();
-    await target.stop();
-  });
+    test("send by pid and by address succeed via REST", async () => {
+      const home = await tempHome();
+      const sender = await peer(home, "pid-sender", "socks-f1");
+      const target = await peer(home, "pid-target", "socks-f2");
+      const server = await createApiServer(sender, {});
+      const auth = { authorization: `Bearer ${server.token ?? ""}` };
 
-  test("GET /events streams message, receipt, and idle events over SSE", async () => {
-    const home = await tempHome();
-    const p = await peer(home, "sse-peer", "socks-g");
-    const server = await createApiServer(p, {});
-    const controller = new AbortController();
-    const response = await fetch(
-      `http://127.0.0.1:${server.port.toString()}/events`,
-      {
-        headers: { authorization: `Bearer ${server.token ?? ""}` },
-        signal: controller.signal,
-      },
-    );
-    expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toBe("text/event-stream");
-    const reader: ReadableStreamDefaultReader<Uint8Array> | undefined =
-      response.body?.getReader();
-    expect(reader).toBeDefined();
-    const decoder = new TextDecoder();
-    let buffered = "";
+      const roster = await sender.roster();
+      const targetEntry = roster.find((e) => e.name === "pid-target");
+      expect(targetEntry).toBeDefined();
 
-    async function readUntil(marker: string): Promise<void> {
-      for (let i = 0; i < 50 && !buffered.includes(marker); i += 1) {
-        const chunk: ReadableStreamReadResult<Uint8Array> | undefined =
-          await reader?.read();
-        if (chunk?.value !== undefined) buffered += decoder.decode(chunk.value);
+      const byPid = await fetch(
+        `http://127.0.0.1:${server.port.toString()}/messages`,
+        {
+          method: "POST",
+          headers: { ...auth, "content-type": "application/json" },
+          body: JSON.stringify({
+            to: { pid: targetEntry?.pid },
+            body: "by pid",
+          }),
+        },
+      );
+      expect(byPid.status).toBe(202);
+
+      const byAddress = await fetch(
+        `http://127.0.0.1:${server.port.toString()}/messages`,
+        {
+          method: "POST",
+          headers: { ...auth, "content-type": "application/json" },
+          body: JSON.stringify({
+            to: { address: targetEntry?.messagingSocketPath },
+            body: "by address",
+          }),
+        },
+      );
+      expect(byAddress.status).toBe(202);
+
+      await server.close();
+      await sender.stop();
+      await target.stop();
+    });
+
+    test("GET /events streams message, receipt, and idle events over SSE", async () => {
+      const home = await tempHome();
+      const p = await peer(home, "sse-peer", "socks-g");
+      const server = await createApiServer(p, {});
+      const controller = new AbortController();
+      const response = await fetch(
+        `http://127.0.0.1:${server.port.toString()}/events`,
+        {
+          headers: { authorization: `Bearer ${server.token ?? ""}` },
+          signal: controller.signal,
+        },
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("text/event-stream");
+      const reader: ReadableStreamDefaultReader<Uint8Array> | undefined =
+        response.body?.getReader();
+      expect(reader).toBeDefined();
+      const decoder = new TextDecoder();
+      let buffered = "";
+
+      async function readUntil(marker: string): Promise<void> {
+        for (let i = 0; i < 50 && !buffered.includes(marker); i += 1) {
+          const chunk: ReadableStreamReadResult<Uint8Array> | undefined =
+            await reader?.read();
+          if (chunk?.value !== undefined)
+            buffered += decoder.decode(chunk.value);
+        }
+        expect(buffered).toContain(marker);
       }
-      expect(buffered).toContain(marker);
-    }
 
-    await readUntil(": connected");
-    p.emit("message", { body: "hi", msgId: "m1" });
-    await readUntil("event: message");
-    p.emit("receipt", { status: "held" });
-    await readUntil("event: receipt");
-    p.emit("idle", { state: "idle" });
-    await readUntil("event: idle");
+      await readUntil(": connected");
+      p.emit("message", { body: "hi", msgId: "m1" });
+      await readUntil("event: message");
+      p.emit("receipt", { status: "held" });
+      await readUntil("event: receipt");
+      p.emit("idle", { state: "idle" });
+      await readUntil("event: idle");
 
-    controller.abort();
-    await server.close();
-    await p.stop();
-  }, 10_000);
+      controller.abort();
+      await server.close();
+      await p.stop();
+    }, 10_000);
 
-  test("POST /messages forwards a supplied priority and fromMode to send", async () => {
-    const home = await tempHome();
-    const sender = await peer(home, "priority-sender", "socks-h1");
-    const receiver = await peer(home, "priority-receiver", "socks-h2");
-    const server = await createApiServer(sender, {});
-    const response = await fetch(
-      `http://127.0.0.1:${server.port.toString()}/messages`,
-      {
-        method: "POST",
-        headers: {
-          authorization: `Bearer ${server.token ?? ""}`,
-          "content-type": "application/json",
+    test("POST /messages forwards a supplied priority and fromMode to send", async () => {
+      const home = await tempHome();
+      const sender = await peer(home, "priority-sender", "socks-h1");
+      const receiver = await peer(home, "priority-receiver", "socks-h2");
+      const server = await createApiServer(sender, {});
+      const response = await fetch(
+        `http://127.0.0.1:${server.port.toString()}/messages`,
+        {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${server.token ?? ""}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            to: { name: "priority-receiver" },
+            body: "urgent",
+            priority: "next",
+            fromMode: "bypass",
+          }),
         },
-        body: JSON.stringify({
-          to: { name: "priority-receiver" },
-          body: "urgent",
-          priority: "next",
-          fromMode: "bypass",
-        }),
-      },
-    );
-    expect(response.status).toBe(202);
-    await server.close();
-    await sender.stop();
-    await receiver.stop();
-  });
-});
+      );
+      expect(response.status).toBe(202);
+      await server.close();
+      await sender.stop();
+      await receiver.stop();
+    });
+  },
+);
