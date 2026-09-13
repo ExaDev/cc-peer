@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createServer } from "node:http";
 import { randomBytes } from "node:crypto";
+import type { AddressInfo } from "node:net";
 
 import type { CcPeer, PeerRef } from "../cc-peer.js";
 import {
@@ -49,9 +50,7 @@ export async function createApiServer(
   });
   return new Promise<ApiServer>((resolve) => {
     server.listen(options.port ?? 0, BIND_HOST, () => {
-      const address = server.address();
-      const port =
-        typeof address === "object" && address !== null ? address.port : 0;
+      const port = listeningPort(server.address());
       resolve({
         port,
         token,
@@ -82,7 +81,7 @@ async function handle(
     res.end(body);
   };
   // DNS-rebinding defence: only localhost Host headers are served.
-  const host = (req.headers.host ?? "").split(":")[0] ?? "";
+  const host = hostnameOf(req.headers.host);
   if (!ALLOWED_HOSTS.has(host)) {
     finish(HTTP_FORBIDDEN, errorBody("host not allowed"));
     return;
@@ -94,10 +93,7 @@ async function handle(
       return;
     }
   }
-  const url = new URL(
-    req.url ?? "/",
-    `http://${req.headers.host ?? "localhost"}`,
-  );
+  const url = requestUrl(req.url, req.headers.host);
   try {
     if (req.method === "GET" && url.pathname === "/healthz") {
       finish(HTTP_OK, JSON.stringify({ ok: true }));
@@ -141,14 +137,52 @@ async function handle(
     }
     finish(HTTP_NOT_FOUND, errorBody("not found"));
   } catch (error) {
-    finish(
-      HTTP_INTERNAL,
-      errorBody(error instanceof Error ? error.message : "internal"),
-    );
+    finish(HTTP_INTERNAL, errorBody(httpErrorMessage(error)));
   }
 }
 
-function toPeerRef(
+/**
+ * Extract the numeric port `createApiServer` reports after `listen()`. The server always listens on a TCP host:port pair (never a named pipe), so `address()` returning anything but an AddressInfo object is a Node behaviour our own call site cannot trigger; a thrown error surfaces that violated assumption loudly rather than silently reporting port 0. Exported so the impossible-input side is directly unit-coverable without mocking node:net.
+ */
+export function listeningPort(address: string | AddressInfo | null): number {
+  if (address === null || typeof address !== "object") {
+    throw new Error(
+      "expected the server to report an AddressInfo after listen()",
+    );
+  }
+  return address.port;
+}
+
+/**
+ * Extract the hostname portion of a Host header, ignoring any port suffix. Uses indexOf/slice rather than split()[0] so every branch is genuinely reachable: an absent header is a legitimate "reject as disallowed" case, and a header with no colon is the common case, both real inputs a test can construct directly, unlike split()[0]'s type-only undefined case.
+ */
+export function hostnameOf(hostHeader: string | undefined): string {
+  if (hostHeader === undefined) return "";
+  const colonIndex = hostHeader.indexOf(":");
+  return colonIndex === -1 ? hostHeader : hostHeader.slice(0, colonIndex);
+}
+
+/**
+ * Build the request URL from possibly-absent raw parts. Exported as a pure function so both undefined sides of the fallbacks are directly coverable (Node always populates these for well-formed requests, but the types allow absence and malformed raw requests exercise it).
+ */
+export function requestUrl(
+  rawUrl: string | undefined,
+  host: string | undefined,
+): URL {
+  return new URL(rawUrl ?? "/", `http://${host ?? "localhost"}`);
+}
+
+/**
+ * Map a caught throwable to an HTTP error body message. Exported for direct unit coverage of the non-Error side, which live handlers cannot produce (every throw site raises Error subclasses).
+ */
+export function httpErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : JSON.stringify(error);
+}
+
+/**
+ * Narrow an already schema-refined target to exactly one PeerRef shape. Exported for direct unit coverage of the no-field throw, which the PeerTargetSchema refine makes unreachable through the HTTP surface.
+ */
+export function toPeerRef(
   to: Readonly<{
     pid?: number | undefined;
     name?: string | undefined;
