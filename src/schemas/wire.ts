@@ -134,6 +134,9 @@ export const PeerIdleNoticeSchema = defineSchema(
 );
 export type PeerIdleNotice = z.infer<typeof PeerIdleNoticeSchema>;
 
+/** Bare enum, exported separately so a test can assert its own membership directly rather than through the object field's .catch("claim") fallback, which would otherwise mask a corrupted "claim" member by coincidentally recovering the same value. */
+export const YieldReasonSchema = z.enum(["resume", "claim"]);
+
 export const YieldArtifactRepliesSchema = defineSchema(
   z.object({
     type: z.literal("control"),
@@ -142,7 +145,7 @@ export const YieldArtifactRepliesSchema = defineSchema(
     msg_id: z.string().min(1).max(MAX_MSG_ID_CHARS),
     session_id: z.string().max(MAX_SESSION_ID_CHARS),
     slugs: z.array(z.string().max(MAX_SLUG_CHARS)).max(MAX_YIELD_SLUGS),
-    reason: z.enum(["resume", "claim"]).catch("claim"),
+    reason: YieldReasonSchema.catch("claim"),
     sent_at: z.number(),
     claimed_at: z.number().optional(),
     requester: z
