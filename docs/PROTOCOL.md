@@ -180,7 +180,7 @@ A receiving peer is the mirror: bind the socket, write key file and registry (pr
 | Holds, attestation, self-sent verdict, `crossSessionInbound` parity | verified live |
 | Peer registration, roster admission, name discovery | verified live (standalone peer in `ListAgents`, named `SendMessage`) |
 | Receipts: held / delivered / denied / expired / dropped{duplicate, rate-limited, hop-loop, hop-runaway} | verified live |
-| `queue-full` | code-verified; trigger attempted (55 queued), effective cap dynamically raised |
+| `queue-full` | code-verified; trigger attempted (55 queued behind a hold dialog, no drop). The `tengu_harbor_kite_limits` dynamic override has never been served to this account (absent from the Statsig evaluations cache), so the effective cap is the code default of 50 — the non-firing therefore reflects queue accounting (messages parked behind the approval dialog do not count toward the undelivered-peer-message queue), not a raised cap |
 | Idle subscriptions (`idle`, `exited`) | verified live |
 | artifact_yield admission + answer | verified live (refused and admitted paths); populated handover not exercised |
 | File transfer | staging + wire replicated; receive path behind a never-served server flag (evidenced) |
