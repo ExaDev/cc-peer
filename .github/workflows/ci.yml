@@ -130,12 +130,12 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v2
         with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
           owner: ExaDev
           repositories: cc-peer
 
-      # Diagnostic: identifies which App actually authenticated the token below, since the main-protection ruleset's bypass_actors entry only recognises app ID 1008913 (slug "exadev") and a mismatched secret would authenticate fine while silently failing the later bypass check.
+      # Diagnostic: identifies which App actually authenticated the token below, since the main-protection ruleset's bypass_actors entry only recognises app ID 1008913 (slug "exadev") and a mismatched secret would authenticate fine while silently failing the later bypass check. secrets.APP_ID/APP_PRIVATE_KEY was confirmed (PR #33) to authenticate as "exaclaude" instead; trying GH_APP_ID/GH_APP_PRIVATE_KEY here to find the pair that actually resolves to "exadev".
       - name: Diagnose app token identity
         run: echo "authenticated as app-slug=${{ steps.app-token.outputs.app-slug }}"
 
