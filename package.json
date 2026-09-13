@@ -50,7 +50,7 @@
     "build": "turbo run _build",
     "_build": "tsdown && tsx scripts/generate-json-schema.ts",
     "lint": "turbo run _lint",
-    "_lint": "eslint . --cache",
+    "_lint": "eslint . --cache --fix",
     "typecheck": "turbo run _typecheck",
     "_typecheck": "tsc --noEmit",
     "test": "vitest run",
