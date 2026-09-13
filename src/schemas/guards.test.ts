@@ -1,7 +1,13 @@
 import { describe, expect, test } from "vitest";
 import { AuthLineSchema } from "./wire.js";
 import { PeerKeyFileSchema } from "./keyfile.js";
-import { RegistryEntrySchema } from "./registry.js";
+import {
+  NameSourceSchema,
+  PeerFeatureSchema,
+  PeerStatusSchema,
+  RegistryEntrySchema,
+  SessionKindSchema,
+} from "./registry.js";
 import { EnvelopeAddressSchema, EnvelopeAttributesSchema } from "./envelope.js";
 import { count } from "./limits.js";
 import { componentSchemasFrom, PeerTargetSchema } from "../api/schemas.js";
@@ -29,6 +35,39 @@ describe("attached type guards reject invalid shapes", () => {
 
   test("registry entry requires the full shape", () => {
     expect(RegistryEntrySchema.is({})).toBe(false);
+  });
+
+  test("every documented enum value is accepted by its own schema", () => {
+    for (const value of [
+      "user",
+      "peer",
+      "derived",
+      "collision",
+      "auto",
+      "hook",
+    ]) {
+      expect(NameSourceSchema.is(value)).toBe(true);
+    }
+    expect(NameSourceSchema.is("nonsense")).toBe(false);
+
+    for (const value of ["busy", "shell", "idle", "waiting"]) {
+      expect(PeerStatusSchema.is(value)).toBe(true);
+    }
+    expect(PeerStatusSchema.is("nonsense")).toBe(false);
+
+    for (const value of ["interactive", "bg", "daemon", "daemon-worker"]) {
+      expect(SessionKindSchema.is(value)).toBe(true);
+    }
+    expect(SessionKindSchema.is("nonsense")).toBe(false);
+
+    for (const value of [
+      "notify_idle",
+      "reply_across_default_dirs",
+      "artifact_yield",
+    ]) {
+      expect(PeerFeatureSchema.is(value)).toBe(true);
+    }
+    expect(PeerFeatureSchema.is("nonsense")).toBe(false);
   });
 
   test("envelope address charset is enforced", () => {
