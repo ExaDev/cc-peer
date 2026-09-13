@@ -135,6 +135,10 @@ jobs:
           owner: ExaDev
           repositories: cc-peer
 
+      # Diagnostic: identifies which App actually authenticated the token below, since the main-protection ruleset's bypass_actors entry only recognises app ID 1008913 (slug "exadev") and a mismatched secret would authenticate fine while silently failing the later bypass check.
+      - name: Diagnose app token identity
+        run: echo "authenticated as app-slug=${{ steps.app-token.outputs.app-slug }}"
+
       - uses: actions/checkout@v5
         with:
           token: ${{ steps.app-token.outputs.token }}
