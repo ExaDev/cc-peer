@@ -26,33 +26,31 @@ export async function filterRoster(
   entries: readonly RegistryEntry[],
   probes: RosterProbes,
 ): Promise<RegistryEntry[]> {
-  const verdicts: RosterVerdict[] = [];
-  for (const entry of entries) {
-    const verdict = await checkEntry(entry, probes);
-    verdicts.push(verdict);
-  }
+  const verdicts = await Promise.all(
+    entries.map(async (entry) => checkEntry(entry, probes)),
+  );
   return verdicts.filter((v) => v.admitted).map((v) => v.entry);
 }
 
-async function checkEntry(
+/** Exported for direct unit coverage of each rejection reason, which filterRoster's own filtered-entries return value cannot distinguish. */
+export async function checkEntry(
   entry: RegistryEntry,
   probes: RosterProbes,
 ): Promise<RosterVerdict> {
   if (entry.messagingSocketPath.length === 0) {
     return { entry, admitted: false, reason: "no-socket" };
   }
-  if (
-    probes.ownSocketPath !== undefined &&
-    entry.messagingSocketPath === probes.ownSocketPath
-  ) {
+  // messagingSocketPath is already known non-empty (the no-socket check above returned first otherwise), so comparing it against an absent ownSocketPath is always false without a separate undefined guard.
+  if (entry.messagingSocketPath === probes.ownSocketPath) {
     return { entry, admitted: false, reason: "own-socket" };
   }
   const alive = await probes.procInfo.alive(entry.pid);
   if (!alive) {
     return { entry, admitted: false, reason: "pid-dead" };
   }
+  // entry.procStart is always a defined, non-empty string (schema-enforced), so an absent lstart already satisfies "differs from procStart" on its own without a separate undefined check.
   const lstart = await probes.procInfo.lstart(entry.pid);
-  if (lstart === undefined || lstart !== entry.procStart) {
+  if (lstart !== entry.procStart) {
     return { entry, admitted: false, reason: "proc-start-mismatch" };
   }
   const connectable = await probes.transport.probe(entry.messagingSocketPath);
