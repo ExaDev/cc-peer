@@ -125,7 +125,7 @@ jobs:
       pull-requests: write
       id-token: write
     steps:
-      # Minted before checkout, not after: @semantic-release/git's changelog commit-back needs a real `git push` against main, which the branch ruleset refuses for the workflow's own token — only the exadev App is a permitted bypasser. Generating it first lets checkout itself configure git's credentials with it.
+      # Minted before checkout, not after: @semantic-release/git's changelog commit-back needs a real `git push` against main, which the branch ruleset refuses for the workflow's own token — only the exadev App is a permitted bypasser. Generating it first lets checkout itself configure git's credentials with it. Uses GH_APP_ID/GH_APP_PRIVATE_KEY specifically: secrets.APP_ID/APP_PRIVATE_KEY authenticates as a different app (exaclaude) which the branch ruleset's bypass list doesn't name.
       - name: Generate ExaDev App token
         id: app-token
         uses: actions/create-github-app-token@v2
@@ -134,10 +134,6 @@ jobs:
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
           owner: ExaDev
           repositories: cc-peer
-
-      # Diagnostic: identifies which App actually authenticated the token below, since the main-protection ruleset's bypass_actors entry only recognises app ID 1008913 (slug "exadev") and a mismatched secret would authenticate fine while silently failing the later bypass check. secrets.APP_ID/APP_PRIVATE_KEY was confirmed (PR #33) to authenticate as "exaclaude" instead; trying GH_APP_ID/GH_APP_PRIVATE_KEY here to find the pair that actually resolves to "exadev".
-      - name: Diagnose app token identity
-        run: echo "authenticated as app-slug=${{ steps.app-token.outputs.app-slug }}"
 
       - uses: actions/checkout@v5
         with:
