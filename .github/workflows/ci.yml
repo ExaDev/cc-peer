@@ -219,6 +219,8 @@ jobs:
           exit 1
 
       - name: Upload the binary as a release asset
+        # bash explicitly: windows runners default to PowerShell, which cannot parse this script's bash-specific for/seq syntax.
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # Retried: every leg in this matrix races to upload to the release the preceding job just created, and the asset-upload endpoint has been observed 404ing for several seconds immediately after a release's own creation before the object is fully visible there — an eventual-consistency window, not a real absence of the release.
