@@ -10,6 +10,7 @@ import { UdsTransport, SystemClock } from "./adapters/node/uds-transport.js";
 import { FsKeyStore } from "./adapters/node/fs-key-store.js";
 import { FsRegistryStore } from "./adapters/node/fs-registry-store.js";
 import { socketPathForPid } from "./adapters/node/paths.js";
+import { testSocketPath } from "./test/socket-path.js";
 import {
   MessageTooLargeError,
   NoLiveInboxError,
@@ -250,13 +251,16 @@ describe("CcPeer dependency-injected construction", () => {
     await peer.stop();
   });
 
-  test("on Windows, create() selects WinProcInfo, whose PowerShell probe fails on a non-Windows test runner", async () => {
-    // This distinguishes the two branches by their genuinely different behaviour rather than by inspecting private state: ps exists on this runner and would succeed if PsProcInfo were selected instead, so this rejection only happens when WinProcInfo (backed by a real powershell.exe this machine does not have) is the one actually chosen.
-    const home = await tempHome();
-    await expect(
-      withPlatform("win32", async () => CcPeer.create(peerOptions(home))),
-    ).rejects.toThrow(NotStartedError);
-  });
+  // This distinguishes the two branches by their genuinely different behaviour rather than by inspecting private state: ps exists on this runner and would succeed if PsProcInfo were selected instead, so this rejection only happens when WinProcInfo (backed by a real powershell.exe this machine does not have) is the one actually chosen. Skipped on real Windows: there, WinProcInfo's own powershell.exe genuinely exists and create() is expected to succeed, which is exactly what the real Windows integration test (test/windows-integration.test.ts) verifies instead.
+  test.skipIf(process.platform === "win32")(
+    "on Windows, create() selects WinProcInfo, whose PowerShell probe fails on a non-Windows test runner",
+    async () => {
+      const home = await tempHome();
+      await expect(
+        withPlatform("win32", async () => CcPeer.create(peerOptions(home))),
+      ).rejects.toThrow(NotStartedError);
+    },
+  );
 
   test("start logs unnamed when no name is given", async () => {
     const home = await tempHome();
@@ -293,7 +297,7 @@ describe("CcPeer send error paths", () => {
     await peer.start();
     const frames: string[] = [];
     const transport = new UdsTransport();
-    const targetPath = join(home, "idle-target.sock");
+    const targetPath = testSocketPath(home, "idle-target");
     const listener = await transport.listen(targetPath, (conn) => {
       void (async () => {
         for await (const line of conn.readLines()) {
@@ -325,7 +329,7 @@ describe("CcPeer send error paths", () => {
     const home = await tempHome();
     const peer = makePeer(home);
     await peer.start();
-    const keylessPath = join(home, "keyless.sock");
+    const keylessPath = testSocketPath(home, "keyless");
     const transport = new UdsTransport();
     const listener = await transport.listen(keylessPath, () => {
       void 0;
@@ -368,7 +372,7 @@ const targetsToClose: { close: () => Promise<void> }[] = [];
 async function keyedTarget(home: string): Promise<string> {
   const transport = new UdsTransport();
   const keys = new FsKeyStore({ homeDir: home });
-  const targetPath = join(home, "target.sock");
+  const targetPath = testSocketPath(home, "target");
   const listener = await transport.listen(targetPath, () => {
     void 0;
   });
@@ -507,46 +511,52 @@ describe("CcPeer send happy paths by pid and address", () => {
 });
 
 describe("CcPeer inbound handling", () => {
-  test("a foreign auth token logs a mismatch but frames still process", async () => {
-    const home = await tempHome();
-    const logs: string[] = [];
-    const peer = makePeer(home, {
-      logger: (m) => {
-        logs.push(m);
-      },
-    });
-    await peer.start();
-    tempHomeCache.set(peer, home);
-    const messages: unknown[] = [];
-    peer.on("message", (m) => {
-      messages.push(m);
-    });
-    const socket = await rawClient(peer);
-    socket.write('{"type":"auth","token":"' + "0".repeat(32) + '"}\n');
-    const envelope =
-      '<cross-session-message from="uds:/tmp/cc-socks/9.sock" hop-chain="' +
-      "1".repeat(24) +
-      '" from-name="hopper">\nhi\n</cross-session-message>';
-    socket.write(
-      '{"msgV":1,"msg_id":"' +
-        newMsgId() +
-        '","type":"user","message":{"role":"user","content":' +
-        JSON.stringify(envelope) +
-        '},"priority":"next","from":"uds:/tmp/cc-socks/9.sock"}\n',
-    );
-    await waitFor(() => messages.length > 0);
-    expect(logs.some((m) => m.includes("foreign token tolerated"))).toBe(true);
-    const message = messages[0] as {
-      hopChain?: string[];
-      fromName?: string;
-      from?: string;
-    };
-    expect(message.hopChain).toEqual(["1".repeat(24)]);
-    expect(message.fromName).toBe("hopper");
-    expect(message.from).toBe("uds:/tmp/cc-socks/9.sock");
-    socket.destroy();
-    await peer.stop();
-  });
+  // Foreign-token tolerance is POSIX-only by design (see the Windows-specific tests below, which cover the opposite, required-auth behaviour there); skipped on real Windows rather than asserting a POSIX-only guarantee the protocol never makes there.
+  test.skipIf(process.platform === "win32")(
+    "a foreign auth token logs a mismatch but frames still process",
+    async () => {
+      const home = await tempHome();
+      const logs: string[] = [];
+      const peer = makePeer(home, {
+        logger: (m) => {
+          logs.push(m);
+        },
+      });
+      await peer.start();
+      tempHomeCache.set(peer, home);
+      const messages: unknown[] = [];
+      peer.on("message", (m) => {
+        messages.push(m);
+      });
+      const socket = await rawClient(peer);
+      socket.write('{"type":"auth","token":"' + "0".repeat(32) + '"}\n');
+      const envelope =
+        '<cross-session-message from="uds:/tmp/cc-socks/9.sock" hop-chain="' +
+        "1".repeat(24) +
+        '" from-name="hopper">\nhi\n</cross-session-message>';
+      socket.write(
+        '{"msgV":1,"msg_id":"' +
+          newMsgId() +
+          '","type":"user","message":{"role":"user","content":' +
+          JSON.stringify(envelope) +
+          '},"priority":"next","from":"uds:/tmp/cc-socks/9.sock"}\n',
+      );
+      await waitFor(() => messages.length > 0);
+      expect(logs.some((m) => m.includes("foreign token tolerated"))).toBe(
+        true,
+      );
+      const message = messages[0] as {
+        hopChain?: string[];
+        fromName?: string;
+        from?: string;
+      };
+      expect(message.hopChain).toEqual(["1".repeat(24)]);
+      expect(message.fromName).toBe("hopper");
+      expect(message.from).toBe("uds:/tmp/cc-socks/9.sock");
+      socket.destroy();
+      await peer.stop();
+    },
+  );
 
   test("on Windows, a missing or mismatched auth line closes the connection without delivering anything", async () => {
     const home = await tempHome();
@@ -652,31 +662,35 @@ describe("CcPeer inbound handling", () => {
     await peer.stop();
   });
 
-  test("receipt and idle notice control frames emit their events", async () => {
-    const home = await tempHome();
-    const peer = makePeer(home);
-    await peer.start();
-    tempHomeCache.set(peer, home);
-    const receipts: unknown[] = [];
-    const idles: unknown[] = [];
-    peer.on("receipt", (r) => {
-      receipts.push(r);
-    });
-    peer.on("idle", (n) => {
-      idles.push(n);
-    });
-    const socket = await rawClient(peer);
-    socket.write('{"type":"auth","token":"' + "0".repeat(32) + '"}\n');
-    socket.write(
-      '{"type":"control","action":"peer_message_status","status":"held","reason":"r","from":"uds:/tmp/cc-socks/9.sock","orig_msg_id":"m1","msgV":1,"msg_id":"m2"}\n',
-    );
-    socket.write(
-      '{"type":"control","action":"peer_idle_notice","orig_msg_id":"m1","state":"idle","finished_at":1,"from":"uds:/tmp/cc-socks/9.sock","msgV":1,"msg_id":"m3"}\n',
-    );
-    await waitFor(() => receipts.length > 0 && idles.length > 0);
-    socket.destroy();
-    await peer.stop();
-  });
+  // Relies on the same POSIX-only foreign-token tolerance as the test above; a matching-token equivalent isn't needed since auth vetting is orthogonal to which control action a frame carries.
+  test.skipIf(process.platform === "win32")(
+    "receipt and idle notice control frames emit their events",
+    async () => {
+      const home = await tempHome();
+      const peer = makePeer(home);
+      await peer.start();
+      tempHomeCache.set(peer, home);
+      const receipts: unknown[] = [];
+      const idles: unknown[] = [];
+      peer.on("receipt", (r) => {
+        receipts.push(r);
+      });
+      peer.on("idle", (n) => {
+        idles.push(n);
+      });
+      const socket = await rawClient(peer);
+      socket.write('{"type":"auth","token":"' + "0".repeat(32) + '"}\n');
+      socket.write(
+        '{"type":"control","action":"peer_message_status","status":"held","reason":"r","from":"uds:/tmp/cc-socks/9.sock","orig_msg_id":"m1","msgV":1,"msg_id":"m2"}\n',
+      );
+      socket.write(
+        '{"type":"control","action":"peer_idle_notice","orig_msg_id":"m1","state":"idle","finished_at":1,"from":"uds:/tmp/cc-socks/9.sock","msgV":1,"msg_id":"m3"}\n',
+      );
+      await waitFor(() => receipts.length > 0 && idles.length > 0);
+      socket.destroy();
+      await peer.stop();
+    },
+  );
 
   test("an unknown control action emits nothing", async () => {
     const home = await tempHome();

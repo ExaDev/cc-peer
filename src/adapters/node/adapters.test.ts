@@ -11,6 +11,7 @@ import {
   pidFromSocketPath,
   socketDirCandidates,
 } from "./paths.js";
+import { testSocketPath } from "../../test/socket-path.js";
 
 async function tempHome(): Promise<string> {
   return mkdtemp(join(tmpdir(), "cc-peer-test-"));
@@ -19,7 +20,7 @@ async function tempHome(): Promise<string> {
 describe("UdsTransport", () => {
   test("connectWrite delivers lines to a listening socket", async () => {
     const home = await tempHome();
-    const sockPath = join(home, "echo.sock");
+    const sockPath = testSocketPath(home, "echo");
     const received: string[] = [];
     const server = createServer((socket) => {
       let buffer = "";
@@ -58,7 +59,7 @@ describe("UdsTransport", () => {
 
   test("probe reports a live socket true and a dead path false", async () => {
     const home = await tempHome();
-    const live = join(home, "live.sock");
+    const live = testSocketPath(home, "live");
     const server = createServer();
     await new Promise<void>((resolve) => {
       server.listen(live, () => {
@@ -67,7 +68,7 @@ describe("UdsTransport", () => {
     });
     const transport = new UdsTransport();
     expect(await transport.probe(live)).toBe(true);
-    expect(await transport.probe(join(home, "missing.sock"))).toBe(false);
+    expect(await transport.probe(testSocketPath(home, "missing"))).toBe(false);
     server.close();
   });
 });

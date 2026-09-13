@@ -20,6 +20,7 @@ import { FsRegistryStore } from "./fs-registry-store.js";
 import { UdsTransport } from "./uds-transport.js";
 import { keyFilePath } from "./paths.js";
 import { withPlatform } from "../../test/with-platform.js";
+import { testSocketPath } from "../../test/socket-path.js";
 
 /** A pid no OS will hand out, so ps exits nonzero for it. */
 const IMPOSSIBLE_PID = 999_999_999;
@@ -44,7 +45,8 @@ describe("errnoOf", () => {
   });
 });
 
-describe("PsProcInfo", () => {
+// PsProcInfo is the POSIX-only adapter (CcPeer.create() only ever selects it when !isWindows()); it spawns a real ps and assumes POSIX signal-0/init-pid semantics, neither of which holds on a real Windows kernel. WinProcInfo is exercised separately below.
+describe.skipIf(process.platform === "win32")("PsProcInfo", () => {
   const info = new PsProcInfo();
 
   test("alive: own pid true, dead pid false, init pid EPERM-counts-as-live", async () => {
@@ -247,7 +249,7 @@ describe("FsRegistryStore", () => {
 describe("UdsTransport connection lifecycle", () => {
   test("readLines yields written lines and ends when the client disconnects", async () => {
     const home = await tempHome();
-    const sockPath = join(home, "lifecycle.sock");
+    const sockPath = testSocketPath(home, "lifecycle");
     const transport = new UdsTransport();
     let received: string[] = [];
     let iterationEnded = false;
@@ -278,7 +280,7 @@ describe("UdsTransport connection lifecycle", () => {
 
   test("closing the listener destroys an accepted open connection", async () => {
     const home = await tempHome();
-    const sockPath = join(home, "accepted.sock");
+    const sockPath = testSocketPath(home, "accepted");
     const transport = new UdsTransport();
     const listener = await transport.listen(sockPath, () => {
       void 0;
@@ -300,7 +302,7 @@ describe("UdsTransport connection lifecycle", () => {
 
   test("InboundConnection.close destroys the socket and ends iteration", async () => {
     const home = await tempHome();
-    const sockPath = join(home, "closed-conn.sock");
+    const sockPath = testSocketPath(home, "closed-conn");
     const transport = new UdsTransport();
     const lines: string[] = [];
     let ended = false;
@@ -353,7 +355,8 @@ describe("spawned child liveness", () => {
   });
 });
 
-describe("key file permissions", () => {
+// NTFS has no POSIX permission-bit model: chmod(0o000) there doesn't remove owner read access, so the file the code under test opens stays readable and the "unreadable" branch this test means to exercise never triggers.
+describe.skipIf(process.platform === "win32")("key file permissions", () => {
   test("an unreadable staged key surfaces as undefined rather than throwing", async () => {
     const home = await tempHome();
     const store = new FsKeyStore({ homeDir: home });
