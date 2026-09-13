@@ -221,7 +221,18 @@ jobs:
       - name: Upload the binary as a release asset
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${{ steps.tag.outputs.tag }}" --clobber "${{ steps.build.outputs.binary-path }}"
+        # Retried: every leg in this matrix races to upload to the release the preceding job just created, and the asset-upload endpoint has been observed 404ing for several seconds immediately after a release's own creation before the object is fully visible there — an eventual-consistency window, not a real absence of the release.
+        run: |
+          ATTEMPTS=5
+          for attempt in $(seq 1 "$ATTEMPTS"); do
+            if gh release upload "${{ steps.tag.outputs.tag }}" --clobber "${{ steps.build.outputs.binary-path }}"; then
+              exit 0
+            fi
+            if [ "$attempt" -lt "$ATTEMPTS" ]; then
+              sleep $(( attempt * 5 ))
+            fi
+          done
+          exit 1
 
   mirror-github-packages:
     name: Mirror to GitHub Packages
