@@ -54,6 +54,35 @@ jobs:
       - name: Build
         run: pnpm build
 
+  verify-windows:
+    # Runs on every push and PR, not gated behind release: a Windows regression should fail the same gate any other regression does, rather than surfacing only after a release already shipped it. Real, unmocked coverage of the native-Windows named-pipe transport (see test/windows-integration.test.ts) — the mocked process.platform tests in the main suite prove the branch logic but cannot prove the OS actually accepts a named-pipe path from Node's net module.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+          - os: windows-11-arm
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .tool-versions
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Test
+        # Plain vitest run, not the coverage/mutation gate: those already run once on Linux in verify. This job exists specifically to prove the suite, including the real Windows-only integration tests, passes under an actual Windows kernel.
+        run: pnpm test
+
   release:
     needs: verify
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
