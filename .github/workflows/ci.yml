@@ -125,9 +125,19 @@ jobs:
       pull-requests: write
       id-token: write
     steps:
+      # Minted before checkout, not after: @semantic-release/git's changelog commit-back needs a real `git push` against main, which the branch ruleset refuses for the workflow's own token — only the exadev App is a permitted bypasser. Generating it first lets checkout itself configure git's credentials with it.
+      - name: Generate ExaDev App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ExaDev
+          repositories: cc-peer
+
       - uses: actions/checkout@v5
         with:
-          persist-credentials: false
+          token: ${{ steps.app-token.outputs.token }}
           fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
@@ -143,16 +153,6 @@ jobs:
 
       - name: Install
         run: pnpm install --frozen-lockfile
-
-      # The changelog commit-back pushes directly to main, which the branch ruleset refuses for the workflow token. Mint an installation token for the exadev App (the ruleset's permitted bypasser) instead.
-      - name: Generate ExaDev App token
-        id: app-token
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
-          owner: ExaDev
-          repositories: cc-peer
 
       - name: Release
         env:
