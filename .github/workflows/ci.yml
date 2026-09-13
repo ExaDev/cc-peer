@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Lets release/sea/mirror-github-packages be re-run by hand against the current release when the automatic push-triggered run never dispatched (e.g. a GitHub Actions scheduling outage) or partially failed — no new commit needed.
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -85,7 +87,7 @@ jobs:
 
   release:
     needs: verify
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -132,7 +134,7 @@ jobs:
 
   sea:
     needs: release
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     strategy:
       fail-fast: false
       matrix:
@@ -224,7 +226,7 @@ jobs:
   mirror-github-packages:
     name: Mirror to GitHub Packages
     needs: release
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
