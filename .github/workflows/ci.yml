@@ -123,6 +123,7 @@ jobs:
       # The release tag, not the triggering SHA: semantic-release computed the version at release time and the tag names it, while the triggering commit's own package.json still carries the pre-bump version.
       - name: Resolve the release tag
         id: tag
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -228,11 +229,12 @@ jobs:
         if: steps.mirrored.outputs.already != 'true'
         run: pnpm build
       - name: Rewrite package name and registry for the GitHub Packages scope
-        # GitHub Packages requires the npm package name to be scoped to the repo owner. Rewriting the fields rather than keeping a second package.json means the mirror cannot drift from the real package's metadata. publishConfig.registry must be overridden too: it takes precedence over any registry .npmrc sets, so without this the publish silently targets registry.npmjs.org instead — GITHUB_TOKEN is not a credential that registry recognises.
+        # GitHub Packages requires the npm package name to be scoped to the repo owner. Rewriting the fields rather than keeping a second package.json means the mirror cannot drift from the real package's metadata. publishConfig.registry must be overridden too: it takes precedence over any registry .npmrc sets, so without this the publish silently targets registry.npmjs.org instead — GITHUB_TOKEN is not a credential that registry recognises. provenance must be disabled here specifically: it is inherited from the real package's publishConfig (true, for the npmjs.com OIDC flow), but generating it requires id-token: write, which this job deliberately does not hold, and GitHub Packages has no provenance/OIDC story of its own to generate it against regardless.
         if: steps.mirrored.outputs.already != 'true'
         run: |
           npm pkg set name="${MIRROR_NAME}"
           npm pkg set publishConfig.registry="https://npm.pkg.github.com"
+          npm pkg set publishConfig.provenance=false --json
       - name: Publish the mirror
         if: steps.mirrored.outputs.already != 'true'
         run: |
