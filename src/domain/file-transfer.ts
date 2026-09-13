@@ -8,7 +8,7 @@ import {
   unlink,
   writeFile,
 } from "node:fs/promises";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 
 import { MAX_ATTACHMENTS_PER_MESSAGE } from "../schemas/limits.js";
 import type { FileAttachment } from "../schemas/wire.js";
@@ -77,7 +77,8 @@ export async function materialiseAttachment(
 ): Promise<MaterialisedAttachment | string> {
   const failure = (reason: string): string =>
     `[SendFile: "${attachment.file_name}" was not delivered — ${reason}]`;
-  if (!attachment.path.startsWith("/")) return failure("invalid transfer path");
+  // isAbsolute rather than a literal "/" prefix: the reference receiver's own guarantee is "an absolute path", and on Windows a staged path is drive-letter-rooted (C:\...), never "/"-rooted.
+  if (!isAbsolute(attachment.path)) return failure("invalid transfer path");
   const absolute = resolve(attachment.path);
   if (dirname(absolute) !== resolve(spoolDir(homeDir))) {
     return failure("transfer path is outside the file-transfer spool");
