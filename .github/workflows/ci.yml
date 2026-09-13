@@ -257,11 +257,12 @@ jobs:
       - name: Build
         if: steps.mirrored.outputs.already != 'true'
         run: pnpm build
-      - name: Rewrite package name and registry for the GitHub Packages scope
-        # GitHub Packages requires the npm package name to be scoped to the repo owner. Rewriting the fields rather than keeping a second package.json means the mirror cannot drift from the real package's metadata. publishConfig.registry must be overridden too: it takes precedence over any registry .npmrc sets, so without this the publish silently targets registry.npmjs.org instead — GITHUB_TOKEN is not a credential that registry recognises. provenance must be disabled here specifically: it is inherited from the real package's publishConfig (true, for the npmjs.com OIDC flow), but generating it requires id-token: write, which this job deliberately does not hold, and GitHub Packages has no provenance/OIDC story of its own to generate it against regardless.
+      - name: Rewrite package name, version, and registry for the GitHub Packages scope
+        # GitHub Packages requires the npm package name to be scoped to the repo owner. Rewriting the fields rather than keeping a second package.json means the mirror cannot drift from the real package's metadata. publishConfig.registry must be overridden too: it takes precedence over any registry .npmrc sets, so without this the publish silently targets registry.npmjs.org instead — GITHUB_TOKEN is not a credential that registry recognises. provenance must be disabled here specifically: it is inherited from the real package's publishConfig (true, for the npmjs.com OIDC flow), but generating it requires id-token: write, which this job deliberately does not hold, and GitHub Packages has no provenance/OIDC story of its own to generate it against regardless. version must be set explicitly too: @semantic-release/npm bumps package.json only in the release job's own ephemeral working copy, and with @semantic-release/git absent (see release.config.ts) nothing ever commits that bump back, so the tree checked out here at the release tag still carries source's committed placeholder version rather than the version the tag actually names.
         if: steps.mirrored.outputs.already != 'true'
         run: |
           npm pkg set name="${MIRROR_NAME}"
+          npm pkg set version="${{ steps.tag.outputs.version }}"
           npm pkg set publishConfig.registry="https://npm.pkg.github.com"
           npm pkg set publishConfig.provenance=false --json
       - name: Publish the mirror
