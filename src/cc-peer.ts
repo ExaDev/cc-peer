@@ -5,9 +5,14 @@ import { UdsTransport, SystemClock } from "./adapters/node/uds-transport.js";
 import { FsKeyStore } from "./adapters/node/fs-key-store.js";
 import { FsRegistryStore } from "./adapters/node/fs-registry-store.js";
 import { PsProcInfo } from "./adapters/node/ps-proc-info.js";
+import { WinProcInfo } from "./adapters/node/win-proc-info.js";
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
-import { socketPathForPid, type PathConfig } from "./adapters/node/paths.js";
+import {
+  isWindows,
+  socketPathForPid,
+  type PathConfig,
+} from "./adapters/node/paths.js";
 import { buildEnvelope, parseEnvelope } from "./domain/envelope.js";
 import { Pacer } from "./domain/pacer.js";
 import { newMsgId } from "./domain/ids.js";
@@ -112,7 +117,7 @@ export class CcPeer extends EventEmitter {
       transport: new UdsTransport(),
       registry: new FsRegistryStore(options),
       keys: new FsKeyStore(options),
-      procInfo: new PsProcInfo(),
+      procInfo: isWindows() ? new WinProcInfo() : new PsProcInfo(),
       clock: new SystemClock(),
     });
     await peer.start();
@@ -127,13 +132,16 @@ export class CcPeer extends EventEmitter {
     this.ownKey = {
       peerToken: randomBytes(PEER_TOKEN_BYTES).toString("hex"),
       procStart: (await this.deps.procInfo.lstart(process.pid)) ?? "",
-      pidDomain: "darwin",
+      pidDomain: process.platform,
     };
     if (this.ownKey.procStart === "") {
       throw new NotStartedError("could not read own procStart via ps");
     }
     await this.deps.keys.writeForSocket(socketPath, this.ownKey);
-    await mkdir(dirname(socketPath), { recursive: true, mode: 0o700 });
+    // A named pipe has no filesystem directory of its own to create: on Windows, listen() addresses the OS's pipe namespace directly.
+    if (!isWindows()) {
+      await mkdir(dirname(socketPath), { recursive: true, mode: 0o700 });
+    }
     const entry = this.buildRegistryEntry(this.ownKey.procStart);
     await this.deps.registry.write(entry);
     const ownToken = this.ownKey.peerToken;
@@ -161,7 +169,7 @@ export class CcPeer extends EventEmitter {
       peerFeatures: ["notify_idle", "reply_across_default_dirs"],
       kind: "interactive",
       entrypoint: "cli",
-      pidDomain: "darwin",
+      pidDomain: process.platform,
       messagingSocketPath: socketPathForPid(process.pid, this.options),
       ...(this.options.name !== undefined
         ? {
@@ -308,15 +316,25 @@ export class CcPeer extends EventEmitter {
   private async handleConnection(
     conn: Readonly<{
       readLines: () => AsyncIterable<string>;
+      close: () => void;
     }>,
     ownToken: string,
   ): Promise<void> {
     const lines = conn.readLines();
     const first = await lines[Symbol.asyncIterator]().next();
     if (first.done === true) return;
-    // Auth line: verified against our own peerToken; absent or foreign tokens fall through to the unauthenticated peer class on macOS.
     const parsed: unknown = JSON.parse(first.value);
-    if (AuthLineSchema.is(parsed) && parsed.token !== ownToken) {
+    const authenticated =
+      AuthLineSchema.is(parsed) && parsed.token === ownToken;
+    if (isWindows()) {
+      // Native Windows requires a valid, matching auth line on every connection; Claude Code closes anything else without delivering it.
+      if (!authenticated) {
+        this.log("inbound auth line missing or mismatched (connection closed)");
+        conn.close();
+        return;
+      }
+    } else if (!authenticated) {
+      // Absent or foreign tokens fall through to the unauthenticated peer class on macOS and Linux rather than being rejected outright.
       this.log("inbound auth token mismatch (foreign token tolerated)");
     }
     for await (const line of lines) {

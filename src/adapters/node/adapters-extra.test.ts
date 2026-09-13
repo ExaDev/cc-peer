@@ -5,7 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { connect } from "node:net";
 
-import { errnoOf, PsProcInfo } from "./ps-proc-info.js";
+import { PsProcInfo } from "./ps-proc-info.js";
+import { WinProcInfo } from "./win-proc-info.js";
+import { errnoOf } from "./cached-command.js";
 import {
   pidFromSocketPath,
   sessionsDir,
@@ -80,6 +82,20 @@ describe("PsProcInfo", () => {
   });
 });
 
+describe("WinProcInfo", () => {
+  const info = new WinProcInfo();
+
+  test("alive shares PsProcInfo's own signal-0 probe: own pid true, dead pid false", async () => {
+    expect(await info.alive(process.pid)).toBe(true);
+    expect(await info.alive(IMPOSSIBLE_PID)).toBe(false);
+  });
+
+  test("lstart resolves to undefined when powershell.exe is not on this machine", async () => {
+    // Every test runner this suite actually runs on is POSIX, so powershell.exe genuinely does not exist here — this exercises the real "command not found" path, not a simulated one. Successful parsing of real PowerShell output is validated by the Windows CI job instead, which runs this class against a real powershell.exe.
+    expect(await info.lstart(process.pid)).toBeUndefined();
+  });
+});
+
 describe("paths", () => {
   test("XDG_RUNTIME_DIR adds a candidate and is absent by default order", () => {
     const had = process.env.XDG_RUNTIME_DIR;
@@ -101,10 +117,37 @@ describe("paths", () => {
     expect(pidFromSocketPath("/tmp/cc-socks/foo.sock")).toBe(0);
   });
 
+  test("pidFromSocketPath parses a named-pipe path by its own shape, regardless of the current platform", () => {
+    expect(pidFromSocketPath("\\\\.\\pipe\\cc-peer-4242")).toBe(4242);
+    expect(pidFromSocketPath("\\\\.\\pipe\\cc-peer-not-a-pid")).toBe(0);
+  });
+
   test("socketPathForPid honours an explicit socketDir", () => {
     expect(socketPathForPid(4242, { socketDir: "/custom" })).toBe(
       "/custom/4242.sock",
     );
+  });
+
+  test("socketPathForPid falls back to the default candidate directory with no config", () => {
+    expect(socketPathForPid(4242)).toBe(
+      `${socketDirCandidates()[0]}/4242.sock`,
+    );
+  });
+
+  test("socketPathForPid produces a named-pipe path on Windows", () => {
+    const original = process.platform;
+    Object.defineProperty(process, "platform", {
+      value: "win32",
+      configurable: true,
+    });
+    try {
+      expect(socketPathForPid(4242)).toBe("\\\\.\\pipe\\cc-peer-4242");
+    } finally {
+      Object.defineProperty(process, "platform", {
+        value: original,
+        configurable: true,
+      });
+    }
   });
 
   test("sessionsDir falls back to the real home without config", () => {

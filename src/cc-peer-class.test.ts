@@ -87,7 +87,45 @@ function tempHomeOf(peer: CcPeer): string {
   return tempHomeCache.get(peer) ?? "";
 }
 
+/**
+ * Runs fn with process.platform reporting the given value, always restoring the real value afterward even if fn throws. process.platform's own property descriptor is configurable, so this is a standard way to exercise a platform branch without a real machine of that platform — the isWindows()-gated branches this covers only ever read process.platform, they don't depend on the kernel actually being that OS.
+ */
+async function withPlatform<T>(
+  value: NodeJS.Platform,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const original = process.platform;
+  Object.defineProperty(process, "platform", { value, configurable: true });
+  try {
+    return await fn();
+  } finally {
+    Object.defineProperty(process, "platform", {
+      value: original,
+      configurable: true,
+    });
+  }
+}
+
 describe("CcPeer dependency-injected construction", () => {
+  test("the registry entry's pidDomain reflects the real runtime platform", async () => {
+    const home = await tempHome();
+    const peer = makePeer(home);
+    await peer.start();
+    const store = new FsRegistryStore({ homeDir: home });
+    const entry = await store.read(process.pid);
+    expect(entry?.pidDomain).toBe(process.platform);
+    await peer.stop();
+  });
+
+  test("on Windows, start() does not create a socket directory (an un-created directory makes the bind fail)", async () => {
+    const home = await tempHome();
+    // No socketDir is created here at all, on purpose: a named pipe has no filesystem directory of its own, so if start() skipped the mkdir call (as it must on Windows), the underlying bind has no directory to fail on. This test cannot run on a real Windows kernel, so it observes the branch through the still-POSIX socket bind rejecting instead, which only happens if mkdir was genuinely skipped.
+    const peer = makePeer(home);
+    await expect(
+      withPlatform("win32", async () => peer.start()),
+    ).rejects.toThrow();
+  });
+
   test("start throws NotStartedError when procStart is unreadable", async () => {
     const home = await tempHome();
     const peer = makePeer(home, {
@@ -189,6 +227,14 @@ describe("CcPeer dependency-injected construction", () => {
     const peer = await CcPeer.create(peerOptions(home));
     expect(await peer.roster()).toEqual([]);
     await peer.stop();
+  });
+
+  test("on Windows, create() selects WinProcInfo, whose PowerShell probe fails on a non-Windows test runner", async () => {
+    // This distinguishes the two branches by their genuinely different behaviour rather than by inspecting private state: ps exists on this runner and would succeed if PsProcInfo were selected instead, so this rejection only happens when WinProcInfo (backed by a real powershell.exe this machine does not have) is the one actually chosen.
+    const home = await tempHome();
+    await expect(
+      withPlatform("win32", async () => CcPeer.create(peerOptions(home))),
+    ).rejects.toThrow(NotStartedError);
   });
 
   test("start logs unnamed when no name is given", async () => {
@@ -478,6 +524,74 @@ describe("CcPeer inbound handling", () => {
     expect(message.fromName).toBe("hopper");
     expect(message.from).toBe("uds:/tmp/cc-socks/9.sock");
     socket.destroy();
+    await peer.stop();
+  });
+
+  test("on Windows, a missing or mismatched auth line closes the connection without delivering anything", async () => {
+    const home = await tempHome();
+    const logs: string[] = [];
+    const peer = makePeer(home, {
+      logger: (m) => {
+        logs.push(m);
+      },
+    });
+    await peer.start();
+    tempHomeCache.set(peer, home);
+    const messages: unknown[] = [];
+    peer.on("message", (m) => {
+      messages.push(m);
+    });
+    await withPlatform("win32", async () => {
+      const socket = await rawClient(peer);
+      socket.write('{"type":"auth","token":"' + "0".repeat(32) + '"}\n');
+      const envelope =
+        '<cross-session-message from="uds:/tmp/cc-socks/9.sock">\nhi\n</cross-session-message>';
+      socket.write(
+        '{"msgV":1,"msg_id":"' +
+          newMsgId() +
+          '","type":"user","message":{"role":"user","content":' +
+          JSON.stringify(envelope) +
+          '},"priority":"next","from":"uds:/tmp/cc-socks/9.sock"}\n',
+      );
+      await once(socket, "close");
+    });
+    expect(
+      logs.some((m) => m.includes("auth line missing or mismatched")),
+    ).toBe(true);
+    expect(messages).toHaveLength(0);
+    await peer.stop();
+  });
+
+  test("on Windows, a valid matching auth line still delivers the frame", async () => {
+    const home = await tempHome();
+    const peer = makePeer(home);
+    await peer.start();
+    tempHomeCache.set(peer, home);
+    const keyStore = new FsKeyStore({ homeDir: home });
+    const socketPath = socketPathForPid(process.pid, {
+      socketDir: join(home, "socks"),
+    });
+    const token = (await keyStore.readForSocket(socketPath))?.peerToken ?? "";
+    const messages: unknown[] = [];
+    peer.on("message", (m) => {
+      messages.push(m);
+    });
+    await withPlatform("win32", async () => {
+      const socket = await rawClient(peer);
+      socket.write('{"type":"auth","token":"' + token + '"}\n');
+      const envelope =
+        '<cross-session-message from="uds:/tmp/cc-socks/9.sock">\nhi\n</cross-session-message>';
+      socket.write(
+        '{"msgV":1,"msg_id":"' +
+          newMsgId() +
+          '","type":"user","message":{"role":"user","content":' +
+          JSON.stringify(envelope) +
+          '},"priority":"next","from":"uds:/tmp/cc-socks/9.sock"}\n',
+      );
+      await waitFor(() => messages.length > 0);
+      socket.destroy();
+    });
+    expect(messages).toHaveLength(1);
     await peer.stop();
   });
 
