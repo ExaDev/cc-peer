@@ -24,6 +24,7 @@ import {
 } from "./file-transfer.js";
 import { MAX_ATTACHMENTS_PER_MESSAGE } from "../schemas/limits.js";
 import type { FileAttachment } from "../schemas/wire.js";
+import { HEAVY_FS_IO_TEST_TIMEOUT_MS } from "../test/timeouts.js";
 
 async function tempHome(): Promise<string> {
   return mkdtemp(join(tmpdir(), "cc-peer-ft2-"));
@@ -287,23 +288,27 @@ describe("sweepSpool", () => {
     expect((await stat(staged)).isFile()).toBe(true);
   });
 
-  test("a pass never removes more than the sweep batch limit", async () => {
-    const home = await tempHome();
-    const dir = spoolDir(home);
-    await mkdir(dir, { recursive: true });
-    const now = Date.now();
-    const old = new Date(now - 2 * DAY_MS);
-    const SWEEP_BATCH = 200;
-    const total = SWEEP_BATCH + 1;
-    for (let i = 0; i < total; i += 1) {
-      const path = join(dir, `batch-${i.toString().padStart(4, "0")}.txt`);
-      await writeFile(path, "x", "utf8");
-      await utimes(path, old, old);
-    }
+  test(
+    "a pass never removes more than the sweep batch limit",
+    async () => {
+      const home = await tempHome();
+      const dir = spoolDir(home);
+      await mkdir(dir, { recursive: true });
+      const now = Date.now();
+      const old = new Date(now - 2 * DAY_MS);
+      const SWEEP_BATCH = 200;
+      const total = SWEEP_BATCH + 1;
+      for (let i = 0; i < total; i += 1) {
+        const path = join(dir, `batch-${i.toString().padStart(4, "0")}.txt`);
+        await writeFile(path, "x", "utf8");
+        await utimes(path, old, old);
+      }
 
-    await sweepSpool(home, now);
+      await sweepSpool(home, now);
 
-    const remaining = await readdir(dir);
-    expect(remaining).toHaveLength(1);
-  });
+      const remaining = await readdir(dir);
+      expect(remaining).toHaveLength(1);
+    },
+    HEAVY_FS_IO_TEST_TIMEOUT_MS,
+  );
 });
