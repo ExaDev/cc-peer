@@ -131,18 +131,25 @@ describe("CcPeer dependency-injected construction", () => {
     await peer.start();
     const store = new FsRegistryStore({ homeDir: home });
     const before = (await store.read(process.pid))?.updatedAt;
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(() => {
-        resolve();
-      }, 120);
-      timer.unref();
-    });
-    const after = (await store.read(process.pid))?.updatedAt;
+    expect(before).toBeDefined();
+    // Polls for the first tick rather than sleeping a fixed multiple of heartbeatMs and checking once: a real setInterval has no delivery guarantee under a busy scheduler, so a single fixed wait is a race against however loaded the runner happens to be at that moment, whereas polling only needs one tick to ever land within the overall timeout, however late the runner makes it.
+    const deadline = Date.now() + 5_000;
+    let after: number | undefined;
+    do {
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, 20);
+        timer.unref();
+      });
+      after = (await store.read(process.pid))?.updatedAt;
+    } while (
+      (after === undefined || after <= (before ?? 0)) &&
+      Date.now() < deadline
+    );
     expect(after !== undefined && before !== undefined && after > before).toBe(
       true,
     );
     await peer.stop();
-  });
+  }, 10_000);
 
   test("a heartbeat tick that fails to touch the registry is swallowed", async () => {
     const home = await tempHome();
