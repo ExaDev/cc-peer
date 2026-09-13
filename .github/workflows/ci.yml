@@ -221,31 +221,17 @@ jobs:
           BINARY_PATH="$(node --experimental-strip-types scripts/build-sea.ts)"
           echo "binary-path=$BINARY_PATH" >> "$GITHUB_OUTPUT"
 
-      - name: Smoke the binary
-        # bash explicitly: windows runners default to PowerShell, which has none of the backgrounding idioms this uses (git-bash ships on the image, and the win32 binary's .exe name is data, not syntax, here).
+      - name: Set executable permission on POSIX
+        # SEA binaries need the executable bit on POSIX; Windows has no equivalent concept, and chmod there is a silent no-op through Node's fs, but this step avoids depending on that and just skips outright.
+        if: runner.os != 'Windows'
         shell: bash
-        run: |
-          BINARY="${{ steps.build.outputs.binary-path }}"
-          chmod +x "$BINARY"
-          "$BINARY" --name sea-smoke > smoke.log 2>&1 &
-          PID=$!
-          # Polled rather than a single fixed sleep: on Windows, start() itself spawns a real subprocess (WinProcInfo's own powershell.exe) before the server ever binds, and that spawn's latency is exactly what the test suite's own REAL_PROCESS_SPAWN_TEST_TIMEOUT_MS headroom already exists to accommodate (confirmed exceeding a naive 5s fixed wait on a real windows-11-arm runner). Exiting the loop the moment the banner appears, or the moment the process itself has died, means a healthy binary is never held to the full deadline and a genuine crash is reported immediately rather than only after the full wait.
-          DEADLINE=$(( $(date +%s) + 20 ))
-          while [ "$(date +%s)" -lt "$DEADLINE" ]; do
-            if grep -q "REST facade listening" smoke.log 2>/dev/null; then
-              kill "$PID" 2>/dev/null || true
-              exit 0
-            fi
-            if ! kill -0 "$PID" 2>/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          kill "$PID" 2>/dev/null || true
-          echo "::group::smoke.log"
-          cat smoke.log
-          echo "::endgroup::"
-          exit 1
+        run: chmod +x "${{ steps.build.outputs.binary-path }}"
+
+      - name: E2e test the packaged binary
+        # Spawns the actual compiled artifact as a real, separate process and hits its REST facade over the network — see test/sea.e2e.test.ts. Runs the same test file this repo's own contributors can run locally against any SEA build.
+        env:
+          CC_PEER_SEA_BINARY: ${{ steps.build.outputs.binary-path }}
+        run: pnpm test:e2e
 
       - name: Upload the binary as a release asset
         # bash explicitly: windows runners default to PowerShell, which cannot parse this script's bash-specific for/seq syntax.
