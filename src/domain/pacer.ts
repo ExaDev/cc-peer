@@ -29,8 +29,7 @@ export class Pacer {
   /** Milliseconds to wait before one token is available (0 = now). */
   msUntilNextToken(): number {
     this.refill();
-    if (this.tokens >= 1) return 0;
-    const deficit = 1 - this.tokens;
+    const deficit = Math.max(0, 1 - this.tokens);
     return Math.ceil((deficit / this.refillPerSecond) * MS_PER_SECOND);
   }
 
@@ -42,10 +41,13 @@ export class Pacer {
     return true;
   }
 
+  /** Clamps negative elapsed time (a clock moving backward) to zero rather than draining tokens, folding the guard into the arithmetic instead of a separate branch. */
   private refill(): void {
     const now = this.clock.nowMs();
-    const elapsedSeconds = (now - this.lastRefillMs) / MS_PER_SECOND;
-    if (elapsedSeconds <= 0) return;
+    const elapsedSeconds = Math.max(
+      0,
+      (now - this.lastRefillMs) / MS_PER_SECOND,
+    );
     this.tokens = Math.min(
       this.capacity,
       this.tokens + elapsedSeconds * this.refillPerSecond,

@@ -36,4 +36,10 @@ describe("joinChain", () => {
     expect(joinChain([])).toBeUndefined();
     expect(joinChain(["a".repeat(24)])).toBe("a".repeat(24));
   });
+
+  test("multiple ids join with a comma separator", () => {
+    expect(joinChain(["a".repeat(24), "b".repeat(24)])).toBe(
+      `${"a".repeat(24)},${"b".repeat(24)}`,
+    );
+  });
 });

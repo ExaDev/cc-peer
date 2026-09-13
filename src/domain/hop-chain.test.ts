@@ -26,6 +26,14 @@ describe("hop-chain", () => {
     expect(next[0]).toBe(id(2));
   });
 
+  test("appendHop does not trim when landing exactly at the grammar maximum", () => {
+    const chain = Array.from({ length: 31 }, (_, i) => id(i + 1));
+    const next = appendHop(chain, ownToken);
+    expect(next).toHaveLength(32);
+    expect(next[0]).toBe(id(1));
+    expect(next.at(-1)).toBe(ownToken);
+  });
+
   test("runaway fires above the guard length but not at it", () => {
     const at = Array.from({ length: MAX_CHAIN_LENGTH_GUARD }, (_, i) =>
       id(i + 1),
