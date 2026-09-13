@@ -1,5 +1,9 @@
 const options = {
   testRunner: "vitest",
+  // Named explicitly rather than left to auto-discovery: a fresh pnpm install's strict, non-flat node_modules layout does not expose
+  // @stryker-mutator/vitest-runner the way auto-discovery expects, failing
+  // with "Cannot find TestRunner plugin vitest" on a clean CI checkout even though the identical config resolves it fine against an already-populated local node_modules.
+  plugins: ["@stryker-mutator/vitest-runner"],
   reporters: ["html", "clear-text", "progress"],
   coverageAnalysis: "perTest",
   // define-schema.ts is excluded, not just left to ignoreStatic: every schema module assigns defineSchema's return value straight to a top-level export const, so a mutant that empties defineSchema's body poisons every module that imports it and crashes test collection across ten-plus files at once. That triggers a still-open
