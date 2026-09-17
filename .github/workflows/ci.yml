@@ -24,7 +24,7 @@ jobs:
 
       - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .tool-versions
           cache: pnpm
@@ -73,7 +73,7 @@ jobs:
 
       - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .tool-versions
           cache: pnpm
@@ -103,7 +103,7 @@ jobs:
 
       - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .tool-versions
           cache: pnpm
@@ -142,7 +142,7 @@ jobs:
 
       - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .tool-versions
           cache: pnpm
@@ -197,7 +197,7 @@ jobs:
 
       - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .tool-versions
           cache: pnpm
@@ -210,7 +210,7 @@ jobs:
 
       # A distribution of even a new-enough Node can ship with the SEA feature compiled out (Homebrew bottles do), so pin one specific version confirmed to have it enabled rather than "latest" — a future Node release can then never silently break this step.
       - name: Install a Node build with SEA support
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: "26.8.1"
 
@@ -280,7 +280,7 @@ jobs:
           persist-credentials: false
           ref: ${{ steps.tag.outputs.tag }}
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .tool-versions
           cache: pnpm
