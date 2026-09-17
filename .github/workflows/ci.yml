@@ -90,9 +90,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # macos-latest (arm64) and macos-26-intel (x64) are GitHub's current pair for this macOS generation. macos-13, retired by GitHub on 2025-12-08 (github.blog/changelog/2025-09-19-github-actions-macos-13-runner-image-is-closing-down), used to be the x64 half of this pair; it queued forever with no runner ever assigned rather than failing loudly. macos-latest-large, listed alongside macos-26-intel in actions/runner-images' own README as an alias for the identical x64 image, was tried first and failed a job in 4 seconds with zero recorded steps — the signature of a runner request GitHub's scheduler could never satisfy at all, consistent with -large routing through the (opt-in, not enabled here) Larger Runners feature rather than being a plain alias in practice.
         include:
           - os: macos-latest
-          - os: macos-13
+          - os: macos-26-intel
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
@@ -124,9 +125,19 @@ jobs:
       pull-requests: write
       id-token: write
     steps:
+      # Minted before checkout, not after: @semantic-release/git's changelog commit-back needs a real `git push` against main, which the branch ruleset refuses for the workflow's own token — only the exadev App is a permitted bypasser. Generating it first lets checkout itself configure git's credentials with it. Uses GH_APP_ID/GH_APP_PRIVATE_KEY specifically: secrets.APP_ID/APP_PRIVATE_KEY authenticates as a different app (exaclaude) which the branch ruleset's bypass list doesn't name.
+      - name: Generate ExaDev App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ExaDev
+          repositories: cc-peer
+
       - uses: actions/checkout@v5
         with:
-          persist-credentials: false
+          token: ${{ steps.app-token.outputs.token }}
           fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
@@ -143,16 +154,6 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      # The changelog commit-back pushes directly to main, which the branch ruleset refuses for the workflow token. Mint an installation token for the exadev App (the ruleset's permitted bypasser) instead.
-      - name: Generate ExaDev App token
-        id: app-token
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
-          owner: ExaDev
-          repositories: cc-peer
-
       - name: Release
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -167,10 +168,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Every (platform, arch) pair on a standard runner image: two darwin legs, two linux, two win32. Windows was excluded here previously (a genuine Node limitation: no filesystem-path AF_UNIX support on Windows, only named pipes — nodejs/node#55979), but CcPeer now branches to a real named pipe on native Windows (see paths.ts and win-proc-info.ts), so both legs build a working binary again. build-sea.ts qualifies each asset name by process.platform AND process.arch so shared-OS legs cannot clobber each other's release upload, and gives win32 its .exe.
+        # One darwin leg, two linux, two win32 — deliberately not two darwin legs. macos-26-intel (x64) is excluded here specifically, not as a runner-availability guess: Node's own SEA docs state plainly, under Platform Support, "macOS (arm64 only; x64 is not currently supported and is skipped in the tests)" (nodejs.org/api/single-executable-applications.html), and a real run confirmed it — the packaged binary SIGSEGVs within a second of starting on a genuine macos-26-intel runner (nodejs/node#62893 tracks the same crash upstream, unresolved). This is a gap in Node's own SEA feature for that platform, not something fixable here: cc-peer's regular npm package (and npx cc-peer) already works fine on Intel macOS, proved by verify-macos (macos-26-intel) running the real, unbundled module there — only the standalone SEA executable can't be built for it. Windows was excluded here previously too (a genuine Node limitation: no filesystem-path AF_UNIX support on Windows, only named pipes — nodejs/node#55979), but CcPeer now branches to a real named pipe on native Windows (see paths.ts and win-proc-info.ts), so both legs build a working binary again — an actual fix, unlike Intel macOS's SEA gap, which has none available. build-sea.ts qualifies each asset name by process.platform AND process.arch so shared-OS legs cannot clobber each other's release upload, and gives win32 its .exe.
         include:
           - os: macos-latest
-          - os: macos-13
           - os: ubuntu-latest
           - os: ubuntu-24.04-arm
           - os: windows-latest

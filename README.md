@@ -53,7 +53,7 @@ peer.on("idle", (n) => console.log(`session ${n.state}`));
 await peer.stop();
 ```
 
-Every release is also mirrored to the GitHub Packages registry as `@exadev/cc-peer` (GitHub Packages requires owner-scoped names), and single-executable binaries for every platform/architecture pair ship as release assets.
+Every release is also mirrored to the GitHub Packages registry as `@exadev/cc-peer` (GitHub Packages requires owner-scoped names), and single-executable binaries ship as release assets for every platform/architecture pair Node's own SEA feature supports (see Limitations for the one exception).
 
 The REST facade (`npx cc-peer`) serves `GET /sessions`, `POST /messages`, `POST /idle-subscriptions`, `GET /events` (SSE), and a self-describing `GET /openapi.json` on loopback with a bearer token.
 
@@ -62,5 +62,6 @@ The REST facade (`npx cc-peer`) serves `GET /sessions`, `POST /messages`, `POST 
 - **Same-process constraint**: receipts and idle notices only reach the process that owns the peer's listening socket (the protocol verifies return addresses via kernel peer-pids). Do not split `CcPeer` listening and sending across processes or differently-owned workers.
 - **Single machine**: the local protocol is Unix-socket only. Writing to cloud sessions directly is blocked by design (device-attestation-signed events); bridged sessions reachable locally still work via their local mirror.
 - **Windows uses a named pipe, not a Unix socket**: Node's `net` module has no real AF_UNIX support on Windows (its local domain there is a named pipe, under `\\.\pipe\`, not an arbitrary filesystem path — [nodejs/node#55979](https://github.com/nodejs/node/issues/55979)), and Claude Code's own docs confirm it uses exactly that on native Windows. `cc-peer` branches to a named pipe there automatically; nothing to configure. Windows also requires a valid, matching auth line on every inbound connection (macOS and Linux tolerate an absent or foreign one). The exact `procStart` string format `cc-peer` computes on Windows is its own convention (PowerShell's process start time, ISO-8601) rather than a confirmed match for a real native-Windows Claude Code session's own registry entries, which is not publicly documented.
+- **No single-executable binary for Intel macOS**: Node's own SEA feature doesn't support macOS x64 at all (its docs state plainly, under Platform Support, "macOS (arm64 only; x64 is not currently supported and is skipped in the tests)"; [nodejs/node#62893](https://github.com/nodejs/node/issues/62893) tracks the same crash). This is a gap in Node's own runtime, not in `cc-peer` — the regular npm package (and `npx cc-peer`) works fine on Intel macOS; only the standalone binary can't be built for it.
 - **File transfers to Claude sessions** wait on an upstream feature flag (`tengu_send_file`) before Claude-side materialisation activates; peer-to-peer transfers work today.
 - Verified against Claude Code 2.1.269; treat every Claude Code upgrade as a potential protocol change.
