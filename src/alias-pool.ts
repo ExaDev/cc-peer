@@ -19,11 +19,18 @@ export interface AliasMessage extends InboundMessage {
 const sinkLog = (): void => undefined;
 
 /**
- * alias-worker.ts's own built location, computed from this file's `import.meta.url` rather than ForkedAliasProcess's own: this file is itself a dedicated tsdown entry (see tsdown.config.ts), so its emitted location is stable and predictable, and alias-worker.ts (also a dedicated entry) is emitted at the same relative position to it as the two source files hold to each other in src/. The target extension mirrors this file's own real extension at runtime (`.mjs` or `.cjs`, tsdown's `fixedExtension: true`) rather than a hardcoded `.js`: tsdown builds matching-format sibling entries for every declared output, so alias-pool.mjs's own sibling is always alias-worker.mjs, never a plain `.js` neither format ever actually emits.
+ * Mirrors this module's own real build extension (tsdown's `fixedExtension: true` always emits `.mjs` or `.cjs`, never a plain `.js`) so a computed sibling path names a file tsdown actually produces. Exported as a pure function, independent of `import.meta.url`, so both branches are directly unit-testable: in this repo's own dev/test tree `import.meta.url` always ends in `.ts`, so a test exercising this module's own `import.meta.url` can only ever observe the `.mjs` branch.
+ */
+export function workerExtensionFor(moduleUrl: string): ".mjs" | ".cjs" {
+  return moduleUrl.endsWith(".cjs") ? ".cjs" : ".mjs";
+}
+
+/**
+ * alias-worker.ts's own built location, computed from this file's `import.meta.url` rather than ForkedAliasProcess's own: this file is itself a dedicated tsdown entry (see tsdown.config.ts), so its emitted location is stable and predictable, and alias-worker.ts (also a dedicated entry) is emitted at the same relative position to it as the two source files hold to each other in src/.
  */
 const DEFAULT_WORKER_PATH = fileURLToPath(
   new URL(
-    `./adapters/node/alias-worker${import.meta.url.endsWith(".cjs") ? ".cjs" : ".mjs"}`,
+    `./adapters/node/alias-worker${workerExtensionFor(import.meta.url)}`,
     import.meta.url,
   ),
 );

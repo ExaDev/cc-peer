@@ -1,8 +1,22 @@
 import { describe, expect, test, vi } from "vitest";
 import { EventEmitter } from "node:events";
 
-import { AliasPool } from "./alias-pool.js";
+import { AliasPool, workerExtensionFor } from "./alias-pool.js";
 import type { AliasProcess } from "./ports/alias-process.js";
+
+describe("workerExtensionFor", () => {
+  test("returns .cjs for a module URL ending in .cjs", () => {
+    expect(workerExtensionFor("file:///dist/alias-pool.cjs")).toBe(".cjs");
+  });
+
+  test("returns .mjs for a module URL ending in .mjs", () => {
+    expect(workerExtensionFor("file:///dist/alias-pool.mjs")).toBe(".mjs");
+  });
+
+  test("returns .mjs for any other extension (e.g. the .ts source in dev/test)", () => {
+    expect(workerExtensionFor("file:///src/alias-pool.ts")).toBe(".mjs");
+  });
+});
 
 /** A fake AliasProcess whose start()/stop() are externally controllable, so tests can assert ordering and concurrency without a real child process. */
 class FakeAliasProcess implements AliasProcess {
