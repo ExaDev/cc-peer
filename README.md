@@ -57,6 +57,32 @@ Every release is also mirrored to the GitHub Packages registry as `@exadev/cc-pe
 
 The REST facade (`npx cc-peer`) serves `GET /sessions`, `POST /messages`, `POST /idle-subscriptions`, `GET /events` (SSE), and a self-describing `GET /openapi.json` on loopback with a bearer token.
 
+### Session discovery and reply aliases
+
+`CcPeer.roster()` already lists every live local Claude Code session, not just ones `cc-peer` itself registered — the registry it reads (`~/.claude/sessions/*.json`) is written by every interactive session on startup. A relay/front application that wants to discover every session to attach to needs nothing beyond `roster()`.
+
+Giving a relayed session a name it can reply to natively for each of several correspondents is a different problem: the registry is one file per real OS pid with a single name each, so one process can only ever publish one discoverable name at a time (see [docs/PROTOCOL.md](docs/PROTOCOL.md#session-enumeration-and-reply-aliases-for-a-relayfront-building-on-this-sdk) for the empirical detail). `AliasPool`, exported from `cc-peer/alias-pool`, is the mechanism for this: it lazily forks one lightweight `CcPeer`-backed child process per correspondent name, and relays whatever that alias receives back to the parent.
+
+```ts
+import { AliasPool } from "cc-peer/alias-pool";
+
+const aliases = AliasPool.create();
+
+aliases.on("message", (m) => {
+  // m.alias is the correspondent name the relayed session replied to;
+  // forward m.body to that correspondent's own channel.
+  console.log(`reply for ${m.alias}: ${m.body}`);
+});
+
+// Whenever a new correspondent messages the relayed session for the first
+// time, give it a reply-able name (idempotent; a no-op if already active).
+await aliases.ensure("alice");
+
+// …later, once a correspondent is no longer relevant:
+await aliases.retire("alice");
+await aliases.stopAll();
+```
+
 ## Limitations
 
 - **Same-process constraint**: receipts and idle notices only reach the process that owns the peer's listening socket (the protocol verifies return addresses via kernel peer-pids). Do not split `CcPeer` listening and sending across processes or differently-owned workers.

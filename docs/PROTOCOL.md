@@ -76,6 +76,15 @@ The roster builder (`listLivePeerSessions`) reads all `~/.claude/sessions/<pid>.
 
 Verified chain: a Python peer registered this way appears in `ListAgents` within seconds and receives native `SendMessage` by bare name (`from-name` resolves from the sender's own registry entry).
 
+### Session enumeration and reply aliases (for a relay/front building on this SDK)
+
+Two capabilities a message relay ("front") needs from this protocol, gated on what it actually supports rather than assumed:
+
+- **Session enumeration** — listing every live local Claude Code session, not just ones the relay itself registered — is already fully native. The roster builder above reads every `~/.claude/sessions/<pid>.json` file on disk, regardless of who wrote it; `cc-peer`'s own `CcPeer.roster()` (and the REST facade's `GET /sessions`) is exactly this roster builder, so a relay gets full session discovery for free, with no separate mechanism needed.
+- **Reply aliases** — giving each correspondent that messages a relayed session its own natively-`SendMessage`-reachable name, so the session can reply to it directly by name — is **not** natively supported for more than one name per process. The registry is one file per real OS pid (`registryFilePath`: `<pid>.json`) and each entry carries a single optional `name` field; a process publishing a second name overwrites, rather than adds to, its own entry. This is directly observable in this SDK's own test suite: two `CcPeer` instances sharing one pid (unavoidable — both are the same OS process) leave only the last-registered name visible in the roster, because both wrote to the identical `<pid>.json` file. Native name resolution (`ListAgents`/`SendMessage(name=X)`) walks the registry directory exactly as it is on disk — it has no concept of "this one process answers to several names."
+
+The practical consequence: a relay that wants N correspondents to each get their own reply-able name needs N distinct, genuinely live OS processes — one real pid, one registry file, one name, per correspondent — not a lighter-weight in-process mapping. `cc-peer`'s own `AliasPool` (see the root README) implements exactly this: it lazily forks one lightweight child process per correspondent name, each running an ordinary `CcPeer` instance under that name, and relays whatever the relayed session replies with back to the parent process for translation into whatever channel the correspondent actually lives on.
+
 ## Receipts and status
 
 `peer_message_status` is pushed from receiver to sender over a fresh connection to the sender's socket, authenticated with the sender's own peerToken:
