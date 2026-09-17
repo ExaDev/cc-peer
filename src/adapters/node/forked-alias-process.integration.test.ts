@@ -169,18 +169,18 @@ describe("ForkedAliasProcess against the real alias-worker source", () => {
   test(
     "rejects with AliasStartError when the worker fails to start",
     async () => {
-      const homeDir = await tempHome();
-      // A socketDir nested one level inside a plain regular file makes the worker's own CcPeer.start() throw on mkdir(dirname(socketPath)): creating a new directory entry inside a file (not merely re-stating an already-existing path) has no valid filesystem resolution on any platform. Nesting one level deeper than the broken file itself is load-bearing: pointing socketDir directly AT the broken file was tried first and passed on macOS/Linux but silently succeeded on Windows, where recursive mkdir() against an already-existing path does not appear to verify it is actually a directory.
-      const brokenFile = join(homeDir, "not-a-directory");
-      const brokenSocketDir = join(brokenFile, "sub");
-      await mkdir(homeDir, { recursive: true });
+      const root = await tempHome();
+      // homeDir is the trigger, not socketDir: CcPeer.start() skips its socketDir mkdir entirely on Windows (a named pipe has no filesystem directory of its own — see cc-peer.ts's own isWindows() guard), so corrupting socketDir can never fail there regardless of nesting (confirmed: this test failed on Windows CI with exactly that approach). keys.writeForSocket() and registry.write() both mkdir into sessionsDir(homeDir) unconditionally on every platform, so corrupting homeDir instead reaches a real, unconditional mkdir() everywhere. Nesting one level inside the broken file (not pointing homeDir directly at it) is still load-bearing for the same reason established earlier: creating a genuinely new directory entry inside a file has no valid resolution on any platform, whereas recursive mkdir() against an already-existing path does not appear to verify it is actually a directory on Windows.
+      const brokenFile = join(root, "not-a-directory");
+      const brokenHomeDir = join(brokenFile, "home");
+      await mkdir(root, { recursive: true });
       await writeFile(brokenFile, "not a directory");
       const proc = makeAliasProcess();
       await expect(
         proc.start({
           name: "carol-fail-test",
-          homeDir,
-          socketDir: brokenSocketDir,
+          homeDir: brokenHomeDir,
+          socketDir: join(brokenHomeDir, "socks"),
         }),
       ).rejects.toThrow(AliasStartError);
     },
