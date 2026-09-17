@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Lets release/sea/mirror-github-packages be re-run by hand against the current release when the automatic push-triggered run never dispatched (e.g. a GitHub Actions scheduling outage) or partially failed — no new commit needed.
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -43,15 +45,79 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Test
-        run: pnpm test
+      - name: Test with coverage gate
+        # vitest.config.ts enforces 100% statements/branches/functions/lines: the run exits non-zero below any threshold, so this step IS the coverage gate rather than a report-only pass.
+        run: pnpm test:coverage
+
+      - name: Mutation gate
+        # stryker.config.ts enforces a 100% mutation score (thresholds.break): any surviving mutant in src/domain or src/schemas fails the build.
+        run: pnpm test:mutation
 
       - name: Build
         run: pnpm build
 
+  verify-windows:
+    # Runs on every push and PR, not gated behind release: a Windows regression should fail the same gate any other regression does, rather than surfacing only after a release already shipped it. Real, unmocked coverage of the native-Windows named-pipe transport (see test/windows-integration.test.ts) — the mocked process.platform tests in the main suite prove the branch logic but cannot prove the OS actually accepts a named-pipe path from Node's net module.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+          - os: windows-11-arm
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .tool-versions
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Test
+        # Plain vitest run, not the coverage/mutation gate: those already run once on Linux in verify. This job exists specifically to prove the suite, including the real Windows-only integration tests, passes under an actual Windows kernel.
+        run: pnpm test
+
+  verify-macos:
+    # Runs on every push and PR, matching verify-windows: previously only the sea job's own build-and-smoke-test ever touched a macOS runner, so a macOS-specific regression in the unit/integration suite itself (POSIX-path quirks, ps output shape, real UDS socket behaviour) had no dedicated coverage at all.
+    strategy:
+      fail-fast: false
+      matrix:
+        # macos-latest (arm64) and macos-26-intel (x64) are GitHub's current pair for this macOS generation. macos-13, retired by GitHub on 2025-12-08 (github.blog/changelog/2025-09-19-github-actions-macos-13-runner-image-is-closing-down), used to be the x64 half of this pair; it queued forever with no runner ever assigned rather than failing loudly. macos-latest-large, listed alongside macos-26-intel in actions/runner-images' own README as an alias for the identical x64 image, was tried first and failed a job in 4 seconds with zero recorded steps — the signature of a runner request GitHub's scheduler could never satisfy at all, consistent with -large routing through the (opt-in, not enabled here) Larger Runners feature rather than being a plain alias in practice.
+        include:
+          - os: macos-latest
+          - os: macos-26-intel
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .tool-versions
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Test
+        # Plain vitest run, not the coverage/mutation gate: those already run once on Linux in verify.
+        run: pnpm test
+
   release:
     needs: verify
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -59,9 +125,19 @@ jobs:
       pull-requests: write
       id-token: write
     steps:
+      # Minted before checkout, not after: @semantic-release/git's changelog commit-back needs a real `git push` against main, which the branch ruleset refuses for the workflow's own token — only the exadev App is a permitted bypasser. Generating it first lets checkout itself configure git's credentials with it. Uses GH_APP_ID/GH_APP_PRIVATE_KEY specifically: secrets.APP_ID/APP_PRIVATE_KEY authenticates as a different app (exaclaude) which the branch ruleset's bypass list doesn't name.
+      - name: Generate ExaDev App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ExaDev
+          repositories: cc-peer
+
       - uses: actions/checkout@v5
         with:
-          persist-credentials: false
+          token: ${{ steps.app-token.outputs.token }}
           fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
@@ -80,8 +156,170 @@ jobs:
 
       - name: Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           # Explicitly blank: OIDC trusted publishing must be the only credential path.
           NODE_AUTH_TOKEN: ""
           HUSKY: "0"
         run: pnpm exec semantic-release
+
+  sea:
+    needs: release
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        # One darwin leg, two linux, two win32 — deliberately not two darwin legs. macos-26-intel (x64) is excluded here specifically, not as a runner-availability guess: Node's own SEA docs state plainly, under Platform Support, "macOS (arm64 only; x64 is not currently supported and is skipped in the tests)" (nodejs.org/api/single-executable-applications.html), and a real run confirmed it — the packaged binary SIGSEGVs within a second of starting on a genuine macos-26-intel runner (nodejs/node#62893 tracks the same crash upstream, unresolved). This is a gap in Node's own SEA feature for that platform, not something fixable here: cc-peer's regular npm package (and npx cc-peer) already works fine on Intel macOS, proved by verify-macos (macos-26-intel) running the real, unbundled module there — only the standalone SEA executable can't be built for it. Windows was excluded here previously too (a genuine Node limitation: no filesystem-path AF_UNIX support on Windows, only named pipes — nodejs/node#55979), but CcPeer now branches to a real named pipe on native Windows (see paths.ts and win-proc-info.ts), so both legs build a working binary again — an actual fix, unlike Intel macOS's SEA gap, which has none available. build-sea.ts qualifies each asset name by process.platform AND process.arch so shared-OS legs cannot clobber each other's release upload, and gives win32 its .exe.
+        include:
+          - os: macos-latest
+          - os: ubuntu-latest
+          - os: ubuntu-24.04-arm
+          - os: windows-latest
+          - os: windows-11-arm
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      # The release tag, not the triggering SHA: semantic-release computed the version at release time and the tag names it, while the triggering commit's own package.json still carries the pre-bump version.
+      - name: Resolve the release tag
+        id: tag
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          ref: ${{ steps.tag.outputs.tag }}
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .tool-versions
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the SEA bundle
+        run: pnpm build
+
+      # A distribution of even a new-enough Node can ship with the SEA feature compiled out (Homebrew bottles do), so pin one specific version confirmed to have it enabled rather than "latest" — a future Node release can then never silently break this step.
+      - name: Install a Node build with SEA support
+        uses: actions/setup-node@v5
+        with:
+          node-version: "26.8.1"
+
+      - name: Build the single executable
+        id: build
+        shell: bash
+        run: |
+          BINARY_PATH="$(node --experimental-strip-types scripts/build-sea.ts)"
+          echo "binary-path=$BINARY_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Set executable permission on POSIX
+        # SEA binaries need the executable bit on POSIX; Windows has no equivalent concept, and chmod there is a silent no-op through Node's fs, but this step avoids depending on that and just skips outright.
+        if: runner.os != 'Windows'
+        shell: bash
+        run: chmod +x "${{ steps.build.outputs.binary-path }}"
+
+      - name: E2e test the packaged binary
+        # Spawns the actual compiled artifact as a real, separate process and hits its REST facade over the network — see test/sea.e2e.test.ts. Runs the same test file this repo's own contributors can run locally against any SEA build.
+        env:
+          CC_PEER_SEA_BINARY: ${{ steps.build.outputs.binary-path }}
+        run: pnpm test:e2e
+
+      - name: Upload the binary as a release asset
+        # bash explicitly: windows runners default to PowerShell, which cannot parse this script's bash-specific for/seq syntax.
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Retried: every leg in this matrix races to upload to the release the preceding job just created, and the asset-upload endpoint has been observed 404ing for several seconds immediately after a release's own creation before the object is fully visible there — an eventual-consistency window, not a real absence of the release.
+        run: |
+          ATTEMPTS=5
+          for attempt in $(seq 1 "$ATTEMPTS"); do
+            if gh release upload "${{ steps.tag.outputs.tag }}" --clobber "${{ steps.build.outputs.binary-path }}"; then
+              exit 0
+            fi
+            if [ "$attempt" -lt "$ATTEMPTS" ]; then
+              sleep $(( attempt * 5 ))
+            fi
+          done
+          exit 1
+
+  mirror-github-packages:
+    name: Mirror to GitHub Packages
+    needs: release
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+      # Deliberately no id-token: write — GitHub Packages has no OIDC trusted-publishing exchange, and holding id-token makes pnpm attempt (and fail) that exchange anyway, breaking its fallback to the GITHUB_TOKEN this job actually authenticates with.
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      MIRROR_NAME: "@exadev/cc-peer"
+    steps:
+      # The release tag: semantic-release computed the version at release time and the tag names it, while the triggering commit's own package.json still carries the pre-bump version.
+      - name: Resolve the release tag and version
+        id: tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          ref: ${{ steps.tag.outputs.tag }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .tool-versions
+          cache: pnpm
+          # Deliberately NOT setup-node's registry-url/scope inputs: those write an @exadev scope-to-registry mapping into .npmrc that redirects every @exadev-scoped install through GitHub Packages, which breaks `pnpm install` below (@exadev/eslint-config is a devDependency published only to the default registry).
+      - run: pnpm install --frozen-lockfile
+      - name: Configure the GitHub Packages auth token for publish only
+        # Added after install so install never sees any scope mapping; the host-scoped credential alone determines auth, and publishConfig.registry (set below) determines the publish target.
+        run: echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" >> ~/.npmrc
+      - name: Check whether this version is already mirrored
+        id: mirrored
+        # Re-running a completed release run re-runs this job for the same tag; republishing an existing version is rejected, so an already-present mirror is a skip, not a failure.
+        run: |
+          if npm view "${MIRROR_NAME}@${{ steps.tag.outputs.version }}" version --registry https://npm.pkg.github.com 2>/dev/null | grep -qx "${{ steps.tag.outputs.version }}"; then
+            echo "already=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::${MIRROR_NAME}@${{ steps.tag.outputs.version }} is already mirrored on GitHub Packages; nothing to do."
+          fi
+      - name: Build
+        if: steps.mirrored.outputs.already != 'true'
+        run: pnpm build
+      - name: Rewrite package name, version, and registry for the GitHub Packages scope
+        # GitHub Packages requires the npm package name to be scoped to the repo owner. Rewriting the fields rather than keeping a second package.json means the mirror cannot drift from the real package's metadata. publishConfig.registry must be overridden too: it takes precedence over any registry .npmrc sets, so without this the publish silently targets registry.npmjs.org instead — GITHUB_TOKEN is not a credential that registry recognises. provenance must be disabled here specifically: it is inherited from the real package's publishConfig (true, for the npmjs.com OIDC flow), but generating it requires id-token: write, which this job deliberately does not hold, and GitHub Packages has no provenance/OIDC story of its own to generate it against regardless. version must be set explicitly too: @semantic-release/npm bumps package.json only in the release job's own ephemeral working copy, and with @semantic-release/git absent (see release.config.ts) nothing ever commits that bump back, so the tree checked out here at the release tag still carries source's committed placeholder version rather than the version the tag actually names.
+        if: steps.mirrored.outputs.already != 'true'
+        run: |
+          npm pkg set name="${MIRROR_NAME}"
+          npm pkg set version="${{ steps.tag.outputs.version }}"
+          npm pkg set publishConfig.registry="https://npm.pkg.github.com"
+          npm pkg set publishConfig.provenance=false --json
+      - name: Publish the mirror
+        if: steps.mirrored.outputs.already != 'true'
+        run: |
+          set +e
+          OUTPUT=$(pnpm publish --access public --no-git-checks 2>&1)
+          STATUS=$?
+          set -e
+          echo "$OUTPUT"
+          [ "$STATUS" -eq 0 ] && exit 0
+          if printf '%s' "$OUTPUT" | grep -q 'permission_denied: write_package'; then
+            echo "::notice::Skipped ${MIRROR_NAME}@${{ steps.tag.outputs.version }}: this repository is not on that GitHub package's Actions access list yet. Grant it once (a user with package admin): github.com -> Organization ExaDev -> Packages -> ${MIRROR_NAME} -> Package settings -> Manage Actions access -> add Repository \"cc-peer\" with Role \"Write\". The first release after that mirrors automatically."
+            exit 0
+          fi
+          exit "$STATUS"
+

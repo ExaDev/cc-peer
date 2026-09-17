@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "const": "control"
+    },
+    "action": {
+      "type": "string",
+      "const": "unyield_artifact_replies"
+    },
+    "orig_msg_id": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "slugs": {
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 128
+      }
+    },
+    "stopped": {
+      "type": "boolean"
+    },
+    "msgV": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "msg_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "from": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "type",
+    "action",
+    "orig_msg_id",
+    "slugs",
+    "msgV",
+    "msg_id"
+  ],
+  "additionalProperties": false
+}

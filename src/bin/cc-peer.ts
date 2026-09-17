@@ -1,6 +1,11 @@
 #!/usr/bin/env node
+import process from "node:process";
 
-console.error(
-  "cc-peer: the REST facade lands in milestone 7 — nothing to serve yet",
-);
-process.exit(1);
+import { main } from "./main.js";
+
+void main().catch((error: unknown) => {
+  process.stderr.write(
+    `[cc-peer] fatal: ${error instanceof Error ? error.message : String(error)}\n`,
+  );
+  process.exit(1);
+});

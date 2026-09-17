@@ -6,7 +6,7 @@ const config: GlobalConfig = {
   branches: ["main"],
   plugins: [
     [
-      "semantic-release/commit-analyzer",
+      "@semantic-release/commit-analyzer",
       {
         preset: "conventionalcommits",
         releaseRules: [
@@ -25,16 +25,18 @@ const config: GlobalConfig = {
       },
     ],
     [
-      "semantic-release/release-notes-generator",
+      "@semantic-release/release-notes-generator",
       { preset: "conventionalcommits" },
     ],
     ["@semantic-release/changelog", { changelogFile: "CHANGELOG.md" }],
     ["@semantic-release/npm", { pkgRoot: "." }],
+    // Pushes the version bump and changelog back to main as a real commit, tagged by @semantic-release/github below (which runs after, so the tag lands on this commit, not the one that triggered the release). Needs the exadev App's token, since the branch ruleset refuses a direct push to main from any other token — see ci.yml's own comment on generating it before checkout.
     [
       "@semantic-release/git",
       {
-        assets: ["CHANGELOG.md", "package.json", "pnpm-lock.yaml"],
-        message: "chore(release): v${nextRelease.version} [skip ci]",
+        assets: ["CHANGELOG.md", "package.json"],
+        message:
+          "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}",
       },
     ],
     ["@semantic-release/github", { addReleases: "bottom" }],

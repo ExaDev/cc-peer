@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "peerToken": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$"
+    },
+    "procStart": {
+      "type": "string",
+      "minLength": 1
+    },
+    "pidDomain": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "peerToken",
+    "procStart",
+    "pidDomain"
+  ],
+  "additionalProperties": false
+}
