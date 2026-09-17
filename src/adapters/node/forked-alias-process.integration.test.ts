@@ -170,10 +170,11 @@ describe("ForkedAliasProcess against the real alias-worker source", () => {
     "rejects with AliasStartError when the worker fails to start",
     async () => {
       const homeDir = await tempHome();
-      // A socketDir that is actually a regular file, not a directory, makes the worker's own CcPeer.start() throw on mkdir(dirname(socketPath)), so the worker process exits before ever sending "started".
-      const brokenSocketDir = join(homeDir, "not-a-directory");
+      // A socketDir nested one level inside a plain regular file makes the worker's own CcPeer.start() throw on mkdir(dirname(socketPath)): creating a new directory entry inside a file (not merely re-stating an already-existing path) has no valid filesystem resolution on any platform. Nesting one level deeper than the broken file itself is load-bearing: pointing socketDir directly AT the broken file was tried first and passed on macOS/Linux but silently succeeded on Windows, where recursive mkdir() against an already-existing path does not appear to verify it is actually a directory.
+      const brokenFile = join(homeDir, "not-a-directory");
+      const brokenSocketDir = join(brokenFile, "sub");
       await mkdir(homeDir, { recursive: true });
-      await writeFile(brokenSocketDir, "not a directory");
+      await writeFile(brokenFile, "not a directory");
       const proc = makeAliasProcess();
       await expect(
         proc.start({
