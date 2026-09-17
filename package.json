@@ -69,7 +69,7 @@
     "test:integration": "vitest run --project integration",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "test:mutation": "stryker run stryker.config.ts",
-    "prepublishOnly": "pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build && publint && attw --pack",
+    "prepublishOnly": "pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build && publint && attw --pack --profile node16",
     "prepare": "husky",
     "test:coverage": "vitest run --coverage"
   },
