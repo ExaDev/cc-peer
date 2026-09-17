@@ -1,3 +1,9 @@
+## [1.4.1](https://github.com/ExaDev/cc-peer/compare/v1.4.0...v1.4.1) (2026-09-17)
+
+### Bug Fixes
+
+* **build:** scope prepublishOnly's attw check to the node16 profile ([7ccde05](https://github.com/ExaDev/cc-peer/commit/7ccde055c292db2df232107d182752dd62d765f2))
+
 ## [1.4.0](https://github.com/ExaDev/cc-peer/compare/v1.3.5...v1.4.0) (2026-09-17)
 
 ### Features
