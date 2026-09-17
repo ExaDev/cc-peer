@@ -1,3 +1,17 @@
+## [1.4.0](https://github.com/ExaDev/cc-peer/compare/v1.3.5...v1.4.0) (2026-09-17)
+
+### Features
+
+* **alias:** add AliasPool for lazily managing per-correspondent aliases ([0f2c198](https://github.com/ExaDev/cc-peer/commit/0f2c198a2a661b5356c7b25ea1e2217dd4179273))
+* **alias:** add the reply-alias worker process and its Node adapter ([fac5465](https://github.com/ExaDev/cc-peer/commit/fac5465fb9e38614ed9e388625fe58594ef8d6ff))
+* **errors:** add AliasStartError for reply-alias worker startup failures ([8aa8e13](https://github.com/ExaDev/cc-peer/commit/8aa8e13d110217cb4dd6c7d41e74bf5858f0e115))
+* **schemas:** add IPC contract for reply-alias parent/child processes ([e27aab7](https://github.com/ExaDev/cc-peer/commit/e27aab7d2fb8a9dfffb748a482f44b144a74ab4a))
+
+### Bug Fixes
+
+* **alias:** close a coverage gap and a Windows-only test failure ([8014d52](https://github.com/ExaDev/cc-peer/commit/8014d5272c2a1859ac555c36d2cc64428fbc7eb1))
+* **alias:** trigger the worker-start-failure test via homeDir, not socketDir ([a5a5579](https://github.com/ExaDev/cc-peer/commit/a5a55799ad07b91bd084adc001b1ab6541d6a46c))
+
 ## [1.3.5](https://github.com/ExaDev/cc-peer/compare/v1.3.4...v1.3.5) (2026-09-17)
 
 ## [1.3.4](https://github.com/ExaDev/cc-peer/compare/v1.3.3...v1.3.4) (2026-09-14)
