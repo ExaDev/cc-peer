@@ -8,6 +8,7 @@ import {
   UnvettedReplyTargetError,
   NotStartedError,
   ProtocolError,
+  AliasStartError,
 } from "./errors.js";
 
 describe("error taxonomy", () => {
@@ -20,6 +21,7 @@ describe("error taxonomy", () => {
       [new UnvettedReplyTargetError("v"), "UNVETTED_REPLY_TARGET"],
       [new NotStartedError("s"), "NOT_STARTED"],
       [new ProtocolError("p"), "PROTOCOL"],
+      [new AliasStartError("a"), "ALIAS_START_FAILED"],
     ] as const;
     for (const [error, code] of cases) {
       expect(error).toBeInstanceOf(CcPeerError);
