@@ -57,3 +57,11 @@ export class ProtocolError extends CcPeerError {
     this.name = "ProtocolError";
   }
 }
+
+/** A reply-alias worker process exited (or failed to reach the "started" acknowledgement) before it finished registering as a discoverable peer. */
+export class AliasStartError extends CcPeerError {
+  constructor(message: string) {
+    super("ALIAS_START_FAILED", message);
+    this.name = "AliasStartError";
+  }
+}
