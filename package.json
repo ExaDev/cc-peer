@@ -32,6 +32,16 @@
         "default": "./dist/cc-peer.cjs"
       }
     },
+    "./alias-pool": {
+      "import": {
+        "types": "./dist/alias-pool.d.mts",
+        "default": "./dist/alias-pool.mjs"
+      },
+      "require": {
+        "types": "./dist/alias-pool.d.cts",
+        "default": "./dist/alias-pool.cjs"
+      }
+    },
     "./schemas/*.schema.json": "./schemas/*.schema.json",
     "./package.json": "./package.json"
   },
