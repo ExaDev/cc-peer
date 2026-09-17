@@ -22,13 +22,14 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/**/*.ts"],
-      // Entry glue (bin firing wrappers, the SEA entry) is exercised by the spawn-based smoke and SEA smoke tests, not by in-process unit coverage; ports are type-only declarations with no runtime statements to cover.
+      // Entry glue (bin firing wrappers, the SEA entry, the reply-alias worker) is exercised by the spawn-based smoke tests, not by in-process unit coverage; ports are type-only declarations with no runtime statements to cover.
       exclude: [
         "src/**/*.test.ts",
         "src/test/**",
         "src/bin/**",
         "src/sea-entry.ts",
         "src/ports/**",
+        "src/adapters/node/alias-worker.ts",
       ],
       reporter: ["text", "html", "json-summary", "json"],
       thresholds: {

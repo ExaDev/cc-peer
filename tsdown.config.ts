@@ -18,7 +18,13 @@ const seaEntryBuildConfig: UserConfig = {
 
 export default defineConfig([
   {
-    entry: ["src/cc-peer.ts", "src/bin/cc-peer.ts"],
+    // alias-worker.ts is listed as its own dedicated entry, not left to be pulled in transitively by alias-pool.ts, specifically so it is emitted as a real, directly-forkable file at a predictable path (tsdown preserves each declared entry's own src/ directory structure in dist/, so dist/adapters/node/alias-worker.mjs sits at exactly the same relative position to dist/alias-pool.mjs as the two source files do to each other) rather than being folded into one of the shared internal chunks tsdown otherwise splits code across entries into, whose exact filenames and locations are an implementation detail child_process.fork() cannot rely on.
+    entry: [
+      "src/cc-peer.ts",
+      "src/bin/cc-peer.ts",
+      "src/alias-pool.ts",
+      "src/adapters/node/alias-worker.ts",
+    ],
     outDir: "dist",
     format: ["esm", "cjs"],
     dts: true,
