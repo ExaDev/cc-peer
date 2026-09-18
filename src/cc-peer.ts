@@ -1,6 +1,8 @@
 import { EventEmitter } from "node:events";
 import { randomBytes } from "node:crypto";
 
+import packageJson from "../package.json" with { type: "json" };
+
 import { UdsTransport, SystemClock } from "./adapters/node/uds-transport.js";
 import { FsKeyStore } from "./adapters/node/fs-key-store.js";
 import { FsRegistryStore } from "./adapters/node/fs-registry-store.js";
@@ -41,8 +43,8 @@ import {
   UnknownPeerError,
 } from "./errors.js";
 
-/** Package version placeholder until semantic-release owns it. */
-export const CC_PEER_VERSION = "0.0.0";
+/** cc-peer's own package version, read from package.json and inlined at bundle time so it needs no filesystem access at runtime (the SEA build ships as a single file with no package.json alongside it). */
+export const CC_PEER_VERSION: string = packageJson.version;
 
 /** Default log sink: logs go nowhere unless a logger is provided. */
 const sinkLog = (): void => undefined;
@@ -165,6 +167,7 @@ export class CcPeer extends EventEmitter {
       startedAt: now,
       procStart,
       version: "cc-peer",
+      ccPeerVersion: CC_PEER_VERSION,
       peerProtocol: 1,
       peerFeatures: ["notify_idle", "reply_across_default_dirs"],
       kind: "interactive",

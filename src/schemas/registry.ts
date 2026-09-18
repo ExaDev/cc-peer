@@ -31,6 +31,8 @@ export const RegistryEntrySchema = defineSchema(
     startedAt: z.number().int().nonnegative(),
     procStart: z.string().min(1),
     version: z.string().min(1),
+    /** cc-peer's own package version, present on every entry cc-peer itself writes regardless of kind; absent on an entry a real interactive Claude Code session wrote directly, since only cc-peer knows to populate it. Distinct from `version`, which is overloaded between a real Claude Code app version and cc-peer's own sentinel string depending on who wrote the entry. */
+    ccPeerVersion: z.string().min(1).optional(),
     peerProtocol: z.number().int(),
     peerFeatures: z.array(PeerFeatureSchema),
     kind: SessionKindSchema,

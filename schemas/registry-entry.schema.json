@@ -27,6 +27,10 @@
       "type": "string",
       "minLength": 1
     },
+    "ccPeerVersion": {
+      "type": "string",
+      "minLength": 1
+    },
     "peerProtocol": {
       "type": "integer",
       "minimum": -9007199254740991,

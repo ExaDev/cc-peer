@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { connect, type Socket } from "node:net";
 import { once } from "node:events";
 
-import { CcPeer } from "./cc-peer.js";
+import { CcPeer, CC_PEER_VERSION } from "./cc-peer.js";
 import { UdsTransport, SystemClock } from "./adapters/node/uds-transport.js";
 import { FsKeyStore } from "./adapters/node/fs-key-store.js";
 import { FsRegistryStore } from "./adapters/node/fs-registry-store.js";
@@ -116,6 +116,16 @@ describe("CcPeer dependency-injected construction", () => {
     const store = new FsRegistryStore({ homeDir: home });
     const entry = await store.read(process.pid);
     expect(entry?.pidDomain).toBe(process.platform);
+    await peer.stop();
+  });
+
+  test("the registry entry's ccPeerVersion carries cc-peer's own package version, regardless of what the writer's overloaded version field says", async () => {
+    const home = await tempHome();
+    const peer = makePeer(home);
+    await peer.start();
+    const store = new FsRegistryStore({ homeDir: home });
+    const entry = await store.read(process.pid);
+    expect(entry?.ccPeerVersion).toBe(CC_PEER_VERSION);
     await peer.stop();
   });
 
