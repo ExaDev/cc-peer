@@ -6,6 +6,7 @@
     "lib": ["ES2024"],
     "types": ["node"],
     "strict": true,
+    "resolveJsonModule": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "noImplicitReturns": true,
