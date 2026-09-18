@@ -1,3 +1,9 @@
+## [1.5.1](https://github.com/ExaDev/cc-peer/compare/v1.5.0...v1.5.1) (2026-09-18)
+
+### Bug Fixes
+
+* **ci:** drop the redundant version rewrite and its stale comment in the mirror job ([4cfd121](https://github.com/ExaDev/cc-peer/commit/4cfd121992d80374bb8c897309cda4d7c075e8cc))
+
 ## [1.5.0](https://github.com/ExaDev/cc-peer/compare/v1.4.1...v1.5.0) (2026-09-18)
 
 ### Features
