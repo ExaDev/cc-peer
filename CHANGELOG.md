@@ -1,3 +1,9 @@
+## [1.5.0](https://github.com/ExaDev/cc-peer/compare/v1.4.1...v1.5.0) (2026-09-18)
+
+### Features
+
+* **registry:** add ccPeerVersion field, separate from the overloaded version field ([cb2d8f0](https://github.com/ExaDev/cc-peer/commit/cb2d8f0f5bd23916794037862a9896b44a21bf0d))
+
 ## [1.4.1](https://github.com/ExaDev/cc-peer/compare/v1.4.0...v1.4.1) (2026-09-17)
 
 ### Bug Fixes
