@@ -1,6 +1,6 @@
 {
   "name": "cc-peer",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "Communicate with local Claude Code instances over their native cross-session peer messaging: send and receive messages, register as a named discoverable peer, receipts, idle subscriptions, and a REST facade via `npx cc-peer`.",
   "type": "module",
   "license": "MIT",
