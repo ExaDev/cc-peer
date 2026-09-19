@@ -125,12 +125,12 @@ jobs:
       pull-requests: write
       id-token: write
     steps:
-      # Minted before checkout, not after: @semantic-release/git's changelog commit-back needs a real `git push` against main, which the branch ruleset refuses for the workflow's own token — only the exadev App is a permitted bypasser. Generating it first lets checkout itself configure git's credentials with it. Uses GH_APP_ID/GH_APP_PRIVATE_KEY specifically: secrets.APP_ID/APP_PRIVATE_KEY authenticates as a different app (exaclaude) which the branch ruleset's bypass list doesn't name.
+      # Minted before checkout, not after: @semantic-release/git's changelog commit-back needs a real `git push` against main, which the branch ruleset refuses for the workflow's own token — only the exadev App is a permitted bypasser. Generating it first lets checkout itself configure git's credentials with it. Uses the exadev App's client ID with GH_APP_PRIVATE_KEY specifically: secrets.APP_ID/APP_PRIVATE_KEY authenticates as a different app (exaclaude) which the branch ruleset's bypass list doesn't name.
       - name: Generate ExaDev App token
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ secrets.GH_APP_ID }}
+          client-id: Iv23liLMzahHqi38Qo4c
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
           owner: ExaDev
           repositories: cc-peer
