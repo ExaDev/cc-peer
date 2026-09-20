@@ -246,4 +246,43 @@ describe("ForkedAliasProcess against the real alias-worker source", () => {
     },
     REAL_PROCESS_SPAWN_TEST_TIMEOUT_MS,
   );
+
+  test(
+    "exits and removes its registry entry when its parent's IPC channel closes without a stop command",
+    async () => {
+      const homeDir = await tempHome();
+      const socketDir = join(homeDir, "socks");
+      const child = forkViaTsx(REAL_WORKER_PATH, [], {});
+      const started = new Promise<void>((resolve) => {
+        child.on("message", (message: unknown) => {
+          if (
+            typeof message === "object" &&
+            message !== null &&
+            "type" in message &&
+            message.type === "started"
+          ) {
+            resolve();
+          }
+        });
+      });
+      child.send({
+        type: "start",
+        name: "orphan-test",
+        homeDir,
+        socketDir,
+      });
+      await started;
+      await readAliasRegistryEntry(homeDir, "orphan-test");
+
+      const exited = once(child, "exit");
+      child.disconnect();
+      const exitArguments: readonly unknown[] = await exited;
+
+      expect(exitArguments[0]).toBe(0);
+      await expect(
+        readAliasRegistryEntry(homeDir, "orphan-test"),
+      ).rejects.toThrow();
+    },
+    REAL_PROCESS_SPAWN_TEST_TIMEOUT_MS,
+  );
 });
