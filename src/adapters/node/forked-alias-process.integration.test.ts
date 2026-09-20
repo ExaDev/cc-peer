@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { fork, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { mkdtemp, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
@@ -9,7 +9,8 @@ import { once } from "node:events";
 import { randomUUID } from "node:crypto";
 
 import { ForkedAliasProcess } from "./forked-alias-process.js";
-import { AliasStartError } from "../../errors.js";
+import { CcPeer, type InboundMessage } from "../../cc-peer.js";
+import { AliasSendError, AliasStartError } from "../../errors.js";
 import { REAL_PROCESS_SPAWN_TEST_TIMEOUT_MS } from "../../test/timeouts.js";
 import type { RegistryEntry } from "../../schemas/registry.js";
 import type { PeerKeyFile } from "../../schemas/keyfile.js";
@@ -111,6 +112,65 @@ describe("ForkedAliasProcess default fork() fallback", () => {
       await expect(
         proc.start({ name: "unbuilt-default-test" }),
       ).rejects.toThrow(AliasStartError);
+    },
+    REAL_PROCESS_SPAWN_TEST_TIMEOUT_MS,
+  );
+});
+
+/** A pid high enough that no live session in the temp home has published an inbox for it, so resolving it reaches the "no auth key" failure rather than a real socket. */
+const PID_WITH_NO_PUBLISHED_INBOX = 999_999;
+
+describe("ForkedAliasProcess.send against a real receiving peer", () => {
+  test(
+    "delivers a message the receiver attributes to the alias, not to the relay",
+    async () => {
+      const homeDir = await tempHome();
+      const socketDir = join(homeDir, "socks");
+      const target = await CcPeer.create({
+        name: "send-target",
+        homeDir,
+        socketDir,
+      });
+      const received: InboundMessage[] = [];
+      target.on("message", (message: InboundMessage) => {
+        received.push(message);
+      });
+      const proc = makeAliasProcess();
+      await proc.start({ name: "dana-send-test", homeDir, socketDir });
+      const { msgId } = await proc.send(
+        { pid: process.pid },
+        "pong from the alias",
+      );
+      expect(msgId).not.toBe("");
+      await vi.waitFor(() => {
+        expect(received).toHaveLength(1);
+      });
+      expect(received[0]).toEqual(
+        expect.objectContaining({
+          body: "pong from the alias",
+          fromName: "dana-send-test",
+        }),
+      );
+      await proc.stop();
+      await target.stop();
+    },
+    REAL_PROCESS_SPAWN_TEST_TIMEOUT_MS,
+  );
+
+  test(
+    "rejects with the alias peer's own failure code when the target has no live inbox",
+    async () => {
+      const homeDir = await tempHome();
+      const socketDir = join(homeDir, "socks");
+      const proc = makeAliasProcess();
+      await proc.start({ name: "erin-send-failure-test", homeDir, socketDir });
+      const failing = proc.send(
+        { pid: PID_WITH_NO_PUBLISHED_INBOX },
+        "pong into the void",
+      );
+      await expect(failing).rejects.toThrow(AliasSendError);
+      await expect(failing).rejects.toThrow(/NO_LIVE_INBOX/);
+      await proc.stop();
     },
     REAL_PROCESS_SPAWN_TEST_TIMEOUT_MS,
   );

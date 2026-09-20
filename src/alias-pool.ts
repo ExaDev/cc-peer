@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { ForkedAliasProcess } from "./adapters/node/forked-alias-process.js";
 import type { PathConfig } from "./adapters/node/paths.js";
 import type { AliasProcess } from "./ports/alias-process.js";
-import type { InboundMessage } from "./cc-peer.js";
+import type { InboundMessage, PeerRef } from "./cc-peer.js";
 
 export interface AliasPoolOptions extends PathConfig {
   logger?: (message: string) => void;
@@ -44,7 +44,7 @@ interface Deps {
  */
 export class AliasPool extends EventEmitter {
   private readonly active = new Map<string, AliasProcess>();
-  private readonly pending = new Map<string, Promise<void>>();
+  private readonly pending = new Map<string, Promise<AliasProcess>>();
   private readonly log: (message: string) => void;
 
   constructor(
@@ -67,22 +67,37 @@ export class AliasPool extends EventEmitter {
 
   /** Idempotent: a no-op if the alias is already active, and dedup'd if another ensure() for the same name is already in flight. */
   async ensure(name: string): Promise<void> {
-    if (this.active.has(name)) return;
+    await this.acquire(name);
+  }
+
+  /**
+   * Sends `body` to `target` from the named alias's own peer identity, starting that alias first if it is not already running, so the recipient sees the correspondent rather than the relay as the sender. Resolves with the id the alias gave the message; rejects with an `AliasStartError` if the alias could not be started, or an `AliasSendError` if it refused the send or its process ended before acknowledging it.
+   */
+  async send(
+    name: string,
+    target: Readonly<PeerRef>,
+    body: string,
+  ): Promise<{ msgId: string }> {
+    const proc = await this.acquire(name);
+    return proc.send(target, body);
+  }
+
+  /** The single start path behind ensure() and send(): returns the running process for the name, starting one only if neither an active nor an in-flight process already exists. */
+  private async acquire(name: string): Promise<AliasProcess> {
+    const active = this.active.get(name);
+    if (active !== undefined) return active;
     const inFlight = this.pending.get(name);
-    if (inFlight !== undefined) {
-      await inFlight;
-      return;
-    }
+    if (inFlight !== undefined) return inFlight;
     const started = this.startAlias(name);
     this.pending.set(name, started);
     try {
-      await started;
+      return await started;
     } finally {
       this.pending.delete(name);
     }
   }
 
-  private async startAlias(name: string): Promise<void> {
+  private async startAlias(name: string): Promise<AliasProcess> {
     const proc = this.deps.spawn();
     proc.events.on("message", (message: InboundMessage) => {
       this.emit("message", { alias: name, ...message } satisfies AliasMessage);
@@ -102,6 +117,7 @@ export class AliasPool extends EventEmitter {
     });
     this.active.set(name, proc);
     this.log(`alias ${name} active`);
+    return proc;
   }
 
   /** Waits for any in-flight ensure() of the same name to settle first, so a retire() issued while an alias is still starting stops it once (and if) it becomes active. A no-op for a name that is neither active nor pending. */

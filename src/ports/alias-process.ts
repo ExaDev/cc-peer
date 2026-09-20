@@ -1,5 +1,6 @@
 import type { EventEmitter } from "node:events";
 import type { PathConfig } from "../adapters/node/paths.js";
+import type { PeerRef } from "../cc-peer.js";
 
 export interface AliasStartOptions extends PathConfig {
   name: string;
@@ -12,5 +13,9 @@ export interface AliasStartOptions extends PathConfig {
 export interface AliasProcess {
   readonly events: EventEmitter;
   start: (options: Readonly<AliasStartOptions>) => Promise<void>;
+  /**
+   * Sends `body` to `target` from the alias's own peer identity, so the recipient sees the alias as the sender and replies to it natively. Resolves with the id the alias's peer gave the message; rejects with an `AliasSendError` when the alias refuses the send or its process ends before acknowledging it.
+   */
+  send: (target: Readonly<PeerRef>, body: string) => Promise<{ msgId: string }>;
   stop: () => Promise<void>;
 }

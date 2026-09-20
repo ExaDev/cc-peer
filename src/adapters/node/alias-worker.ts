@@ -4,7 +4,11 @@
 import process from "node:process";
 
 import { CcPeer, type InboundMessage } from "../../cc-peer.js";
-import { AliasCommandSchema } from "../../schemas/alias-ipc.js";
+import { CcPeerError } from "../../errors.js";
+import {
+  AliasCommandSchema,
+  type AliasSendCommand,
+} from "../../schemas/alias-ipc.js";
 
 let peer: CcPeer | undefined;
 
@@ -17,6 +21,10 @@ async function handleCommand(raw: unknown): Promise<void> {
   if (raw.type === "stop") {
     await peer?.stop();
     process.exit(0);
+    return;
+  }
+  if (raw.type === "send") {
+    await handleSend(raw);
     return;
   }
   let created: CcPeer;
@@ -36,4 +44,29 @@ async function handleCommand(raw: unknown): Promise<void> {
     process.send?.({ type: "message", ...message });
   });
   process.send?.({ type: "started" });
+}
+
+async function handleSend(command: Readonly<AliasSendCommand>): Promise<void> {
+  const active = peer;
+  if (active === undefined) {
+    process.send?.({
+      type: "send_failed",
+      requestId: command.requestId,
+      code: "NOT_STARTED",
+      message: "alias peer has not started",
+    });
+    return;
+  }
+  try {
+    const { msgId } = await active.send(command.target, command.body);
+    process.send?.({ type: "sent", requestId: command.requestId, msgId });
+  } catch (error) {
+    process.send?.({
+      type: "send_failed",
+      requestId: command.requestId,
+      code: error instanceof CcPeerError ? error.code : "UNKNOWN",
+      message:
+        error instanceof Error ? error.message : "unknown alias send failure",
+    });
+  }
 }

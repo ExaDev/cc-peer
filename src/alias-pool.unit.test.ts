@@ -2,7 +2,9 @@ import { describe, expect, test, vi } from "vitest";
 import { EventEmitter } from "node:events";
 
 import { AliasPool, workerExtensionFor } from "./alias-pool.js";
+import { AliasSendError } from "./errors.js";
 import type { AliasProcess } from "./ports/alias-process.js";
+import type { PeerRef } from "./cc-peer.js";
 
 describe("workerExtensionFor", () => {
   test("returns .cjs for a module URL ending in .cjs", () => {
@@ -22,15 +24,30 @@ describe("workerExtensionFor", () => {
 class FakeAliasProcess implements AliasProcess {
   readonly events = new EventEmitter();
   startCalls: unknown[] = [];
+  sendCalls: { target: Readonly<PeerRef>; body: string }[] = [];
   stopCalls = 0;
   private resolveStart: (() => void) | undefined;
   private rejectStart: ((error: Error) => void) | undefined;
+  private resolveSend:
+    ((result: Readonly<{ msgId: string }>) => void) | undefined;
+  private rejectSend: ((error: Error) => void) | undefined;
 
   async start(options: unknown): Promise<void> {
     this.startCalls.push(options);
     return new Promise<void>((resolve, reject) => {
       this.resolveStart = resolve;
       this.rejectStart = reject;
+    });
+  }
+
+  async send(
+    target: Readonly<PeerRef>,
+    body: string,
+  ): Promise<{ msgId: string }> {
+    this.sendCalls.push({ target, body });
+    return new Promise<{ msgId: string }>((resolve, reject) => {
+      this.resolveSend = resolve;
+      this.rejectSend = reject;
     });
   }
 
@@ -45,6 +62,14 @@ class FakeAliasProcess implements AliasProcess {
 
   failStart(error: Error): void {
     this.rejectStart?.(error);
+  }
+
+  finishSend(msgId: string): void {
+    this.resolveSend?.({ msgId });
+  }
+
+  failSend(error: Error): void {
+    this.rejectSend?.(error);
   }
 }
 
@@ -183,6 +208,76 @@ describe("AliasPool message and exit relay", () => {
     proc.events.emit("exit");
     expect(exits).toEqual([{ alias: "alice" }]);
     expect(pool.activeAliases()).toEqual([]);
+  });
+});
+
+describe("AliasPool.send", () => {
+  test("starts the alias on demand and sends from it, resolving with the message id", async () => {
+    const proc = new FakeAliasProcess();
+    const { pool, spawnCount } = makePool([proc]);
+    const pending = pool.send("alice", { pid: 42 }, "pong");
+    proc.finishStart();
+    await vi.waitFor(() => {
+      expect(proc.sendCalls).toHaveLength(1);
+    });
+    proc.finishSend("m1");
+    await expect(pending).resolves.toEqual({ msgId: "m1" });
+    expect(proc.sendCalls).toEqual([{ target: { pid: 42 }, body: "pong" }]);
+    expect(spawnCount()).toBe(1);
+    expect(pool.activeAliases()).toEqual(["alice"]);
+  });
+
+  test("reuses an already-active alias rather than spawning a second process", async () => {
+    const proc = new FakeAliasProcess();
+    const { pool, spawnCount } = makePool([proc]);
+    const ensuring = pool.ensure("alice");
+    proc.finishStart();
+    await ensuring;
+    const pending = pool.send("alice", { name: "bob" }, "pong");
+    await vi.waitFor(() => {
+      expect(proc.sendCalls).toHaveLength(1);
+    });
+    proc.finishSend("m2");
+    await expect(pending).resolves.toEqual({ msgId: "m2" });
+    expect(spawnCount()).toBe(1);
+  });
+
+  test("waits for an in-flight ensure() of the same name instead of spawning again", async () => {
+    const proc = new FakeAliasProcess();
+    const { pool, spawnCount } = makePool([proc]);
+    const ensuring = pool.ensure("alice");
+    const pending = pool.send("alice", { address: "uds:/tmp/9.sock" }, "pong");
+    proc.finishStart();
+    await ensuring;
+    await vi.waitFor(() => {
+      expect(proc.sendCalls).toHaveLength(1);
+    });
+    proc.finishSend("m3");
+    await expect(pending).resolves.toEqual({ msgId: "m3" });
+    expect(spawnCount()).toBe(1);
+  });
+
+  test("rejects when the alias cannot be started", async () => {
+    const proc = new FakeAliasProcess();
+    const { pool } = makePool([proc]);
+    const pending = pool.send("alice", { pid: 42 }, "pong");
+    proc.failStart(new Error("boom"));
+    await expect(pending).rejects.toThrow("boom");
+    expect(proc.sendCalls).toEqual([]);
+    expect(pool.activeAliases()).toEqual([]);
+  });
+
+  test("propagates the alias process's own send failure", async () => {
+    const proc = new FakeAliasProcess();
+    const { pool } = makePool([proc]);
+    const pending = pool.send("alice", { pid: 42 }, "pong");
+    proc.finishStart();
+    await vi.waitFor(() => {
+      expect(proc.sendCalls).toHaveLength(1);
+    });
+    proc.failSend(new AliasSendError("NO_LIVE_INBOX: no auth key published"));
+    await expect(pending).rejects.toThrow(AliasSendError);
+    await expect(pending).rejects.toThrow(/no auth key published/);
   });
 });
 
