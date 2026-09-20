@@ -78,10 +78,18 @@ aliases.on("message", (m) => {
 // time, give it a reply-able name (idempotent; a no-op if already active).
 await aliases.ensure("alice");
 
+// Deliver alice's message to the relayed session from alice's own alias
+// (starting it if needed), so the session sees alice as the sender and its
+// own reply-to-sender comes back on the "message" handler above rather than
+// to the relay. Rejects if the alias cannot start, or if it cannot send.
+const { msgId } = await aliases.send("alice", { pid: relayedSessionPid }, "ping");
+
 // …later, once a correspondent is no longer relevant:
 await aliases.retire("alice");
 await aliases.stopAll();
 ```
+
+Sending from the alias rather than from the relay's own peer is what makes a relayed session's natural reply reach the right correspondent: a session replies to whoever sent it a message, so a message delivered from the relay comes back to the relay with nothing to say which correspondent it answers.
 
 ## Limitations
 
