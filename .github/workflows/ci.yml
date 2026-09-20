@@ -119,6 +119,9 @@ jobs:
     needs: verify
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    outputs:
+      published: ${{ steps.published.outputs.published }}
+      version: ${{ steps.published.outputs.version }}
     permissions:
       contents: write
       issues: write
@@ -154,6 +157,12 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      - name: Record the latest release before this run
+        id: release-before
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)" >> "$GITHUB_OUTPUT"
+
       - name: Release
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -161,6 +170,49 @@ jobs:
           NODE_AUTH_TOKEN: ""
           HUSKY: "0"
         run: pnpm exec semantic-release
+
+      - name: Detect whether this run published a release
+        id: published
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_BEFORE: ${{ steps.release-before.outputs.tag }}
+        run: |
+          tag_after=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          if [ "$tag_after" = "$TAG_BEFORE" ]; then
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "version=${tag_after#v}" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Tells agent-comms, the only repository that consumes this package, to bump to the version this run published. The dispatch needs an App token: the workflow token cannot trigger a workflow in another repository.
+  notify-agent-comms:
+    name: Notify agent-comms
+    needs: release
+    if: needs.release.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Generate a token for the dispatch
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          # The ExaDev Sync app, installed on every repository in the organisation. Its id is public, so it is written out here rather than read from a variable.
+          app-id: "4816274"
+          private-key: ${{ secrets.EXADEV_SYNC_PRIVATE_KEY }}
+          owner: ExaDev
+          repositories: agent-comms
+
+      - name: Dispatch sibling-released
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PACKAGE: cc-peer
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          gh api repos/ExaDev/agent-comms/dispatches \
+            -f event_type=sibling-released \
+            -F "client_payload[package]=$PACKAGE" \
+            -F "client_payload[version]=$VERSION"
 
   sea:
     needs: release
