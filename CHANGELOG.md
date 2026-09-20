@@ -1,3 +1,9 @@
+## [1.6.1](https://github.com/ExaDev/cc-peer/compare/v1.6.0...v1.6.1) (2026-09-20)
+
+### Bug Fixes
+
+* **alias:** exit when the parent process goes away instead of lingering as an orphan ([6b0b238](https://github.com/ExaDev/cc-peer/commit/6b0b238825b0c3227d36cea022ba3b0bc8307a6c))
+
 ## [1.6.0](https://github.com/ExaDev/cc-peer/compare/v1.5.3...v1.6.0) (2026-09-20)
 
 ### Features
