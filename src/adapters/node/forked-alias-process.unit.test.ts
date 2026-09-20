@@ -3,7 +3,8 @@ import { EventEmitter } from "node:events";
 import type { ChildProcess } from "node:child_process";
 
 import { ForkedAliasProcess } from "./forked-alias-process.js";
-import { AliasStartError } from "../../errors.js";
+import { AliasSendError, AliasStartError } from "../../errors.js";
+import { AliasSendCommandSchema } from "../../schemas/alias-ipc.js";
 
 /** A fake ChildProcess: just enough of the EventEmitter + send() surface for the adapter's own protocol logic, driven manually by each test. */
 class FakeChild extends EventEmitter {
@@ -193,6 +194,135 @@ describe("ForkedAliasProcess message relay", () => {
     });
     child.emitExit(0);
     expect(exits).toEqual([true]);
+  });
+});
+
+/** The requestId the adapter generated for its most recent send command, read back off the fake child's own IPC log so tests can answer the exact request. */
+function lastSendRequestId(child: FakeChild): string {
+  const command = child.sent.at(-1);
+  if (!AliasSendCommandSchema.is(command)) {
+    throw new Error("the last IPC command was not a send command");
+  }
+  return command.requestId;
+}
+
+async function startedProcess(): Promise<{
+  child: FakeChild;
+  proc: ForkedAliasProcess;
+}> {
+  const child = new FakeChild();
+  const { process: proc } = makeForkedAliasProcess(child);
+  const pending = proc.start({ name: "alice" });
+  child.emit("message", { type: "started" });
+  await pending;
+  return { child, proc };
+}
+
+describe("ForkedAliasProcess.send", () => {
+  test("sends a send command carrying the target and body", async () => {
+    const { child, proc } = await startedProcess();
+    const pending = proc.send({ pid: 42 }, "pong");
+    expect(child.sent.at(-1)).toEqual({
+      type: "send",
+      requestId: lastSendRequestId(child),
+      target: { pid: 42 },
+      body: "pong",
+    });
+    child.emit("message", {
+      type: "sent",
+      requestId: lastSendRequestId(child),
+      msgId: "m1",
+    });
+    await expect(pending).resolves.toEqual({ msgId: "m1" });
+  });
+
+  test("gives each send its own request id", async () => {
+    const { child, proc } = await startedProcess();
+    const first = proc.send({ pid: 42 }, "one");
+    const firstRequestId = lastSendRequestId(child);
+    const second = proc.send({ pid: 42 }, "two");
+    const secondRequestId = lastSendRequestId(child);
+    expect(secondRequestId).not.toBe(firstRequestId);
+    child.emit("message", {
+      type: "sent",
+      requestId: secondRequestId,
+      msgId: "m2",
+    });
+    child.emit("message", {
+      type: "sent",
+      requestId: firstRequestId,
+      msgId: "m1",
+    });
+    await expect(first).resolves.toEqual({ msgId: "m1" });
+    await expect(second).resolves.toEqual({ msgId: "m2" });
+  });
+
+  test("rejects with the worker's own failure code and message", async () => {
+    const { child, proc } = await startedProcess();
+    const pending = proc.send({ name: "bob" }, "pong");
+    child.emit("message", {
+      type: "send_failed",
+      requestId: lastSendRequestId(child),
+      code: "NO_LIVE_INBOX",
+      message: "no auth key published",
+    });
+    await expect(pending).rejects.toThrow(AliasSendError);
+    await expect(pending).rejects.toThrow(
+      "NO_LIVE_INBOX: no auth key published",
+    );
+  });
+
+  test("ignores an acknowledgement naming a request it is not waiting on", async () => {
+    const { child, proc } = await startedProcess();
+    const pending = proc.send({ pid: 42 }, "pong");
+    const requestId = lastSendRequestId(child);
+    child.emit("message", {
+      type: "sent",
+      requestId: "someone-elses-request",
+      msgId: "stray",
+    });
+    child.emit("message", {
+      type: "send_failed",
+      requestId: "someone-elses-request",
+      code: "TRANSPORT",
+      message: "stray failure",
+    });
+    child.emit("message", { type: "sent", requestId, msgId: "m1" });
+    await expect(pending).resolves.toEqual({ msgId: "m1" });
+  });
+
+  test("rejects every in-flight send when the worker exits", async () => {
+    const { child, proc } = await startedProcess();
+    const first = proc.send({ pid: 42 }, "one");
+    const second = proc.send({ pid: 42 }, "two");
+    child.emitExit(0);
+    await expect(first).rejects.toThrow(/exited before the send/);
+    await expect(second).rejects.toThrow(AliasSendError);
+  });
+
+  test("throws before the worker has been started", async () => {
+    const child = new FakeChild();
+    const { process: proc } = makeForkedAliasProcess(child);
+    await expect(proc.send({ pid: 42 }, "pong")).rejects.toThrow(
+      AliasSendError,
+    );
+    expect(child.sent).toEqual([]);
+  });
+
+  test("throws once the worker has exited", async () => {
+    const { child, proc } = await startedProcess();
+    child.emitExit(0);
+    await expect(proc.send({ pid: 42 }, "pong")).rejects.toThrow(
+      "alias worker is not running",
+    );
+  });
+
+  test("throws once the worker has been killed by a signal", async () => {
+    const { child, proc } = await startedProcess();
+    child.signalCode = "SIGKILL";
+    await expect(proc.send({ pid: 42 }, "pong")).rejects.toThrow(
+      AliasSendError,
+    );
   });
 });
 
