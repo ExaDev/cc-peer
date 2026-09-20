@@ -65,3 +65,11 @@ export class AliasStartError extends CcPeerError {
     this.name = "AliasStartError";
   }
 }
+
+/** A message could not be sent from a reply alias: its own peer refused the send, or its worker process was gone (or went away) before acknowledging the command. */
+export class AliasSendError extends CcPeerError {
+  constructor(message: string) {
+    super("ALIAS_SEND_FAILED", message);
+    this.name = "AliasSendError";
+  }
+}

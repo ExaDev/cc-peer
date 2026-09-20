@@ -9,6 +9,7 @@ import {
   NotStartedError,
   ProtocolError,
   AliasStartError,
+  AliasSendError,
 } from "./errors.js";
 
 describe("error taxonomy", () => {
@@ -22,6 +23,7 @@ describe("error taxonomy", () => {
       [new NotStartedError("s"), "NOT_STARTED"],
       [new ProtocolError("p"), "PROTOCOL"],
       [new AliasStartError("a"), "ALIAS_START_FAILED"],
+      [new AliasSendError("a"), "ALIAS_SEND_FAILED"],
     ] as const;
     for (const [error, code] of cases) {
       expect(error).toBeInstanceOf(CcPeerError);
