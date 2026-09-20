@@ -1,3 +1,11 @@
+## [1.6.0](https://github.com/ExaDev/cc-peer/compare/v1.5.3...v1.6.0) (2026-09-20)
+
+### Features
+
+* **alias:** send a message from a reply alias's own peer identity ([48c7f9f](https://github.com/ExaDev/cc-peer/commit/48c7f9f32e2e682561f51d85d1d4b28a346465f1))
+* **errors:** add AliasSendError for sends a reply alias cannot make ([c21fe46](https://github.com/ExaDev/cc-peer/commit/c21fe46d6ada3050aab2215a753ba19a95986013))
+* **schemas:** add a send command and its acknowledgements to the alias IPC ([d21694c](https://github.com/ExaDev/cc-peer/commit/d21694c5940b18c2ad533499ae7ddc905ce5dad3))
+
 ## [1.5.3](https://github.com/ExaDev/cc-peer/compare/v1.5.2...v1.5.3) (2026-09-20)
 
 ## [1.5.2](https://github.com/ExaDev/cc-peer/compare/v1.5.1...v1.5.2) (2026-09-19)
