@@ -1,6 +1,6 @@
 # cc-peer
 
-[![GitHub](https://img.shields.io/badge/GitHub-181717?logo=github&logoColor=white)](https://github.com/ExaDev/cc-peer) [![npm](https://img.shields.io/npm/v/cc-peer)](https://www.npmjs.com/package/cc-peer) [![CI](https://img.shields.io/github/actions/workflow/status/ExaDev/cc-peer/ci.yml?branch=main)](https://github.com/ExaDev/cc-peer/actions)
+[![GitHub](https://img.shields.io/badge/GitHub-181717?logo=github&logoColor=white)](https://github.com/ExaDev/cc-peer) [![npm](https://img.shields.io/badge/npm-CB3837?logo=npm&logoColor=white)](https://www.npmjs.com/package/cc-peer) [![Release](https://img.shields.io/github/v/release/ExaDev/cc-peer)](https://github.com/ExaDev/cc-peer/releases/latest) [![CI](https://img.shields.io/github/actions/workflow/status/ExaDev/cc-peer/ci.yml?branch=main)](https://github.com/ExaDev/cc-peer/actions)
 
 Talk to the Claude Code instances running on your machine, from any Node application: send messages, register as a named peer other sessions can discover and message, receive replies and delivery receipts, and subscribe to idle notifications. Ships a REST facade you can run with `npx cc-peer`.
 
