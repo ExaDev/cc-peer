@@ -4,6 +4,8 @@
 
 Talk to the Claude Code instances running on your machine, from any Node application: send messages, register as a named peer other sessions can discover and message, receive replies and delivery receipts, and subscribe to idle notifications. Ships a REST facade you can run with `npx cc-peer`.
 
+[![npm downloads chart, log scale](https://shieldcn.dev/chart/npm/cc-peer.svg?bg=transparent&logo=false&yScale=log)](https://www.npmjs.com/package/cc-peer)
+
 > **Unofficial.** This SDK speaks Claude Code's local cross-session peer protocol, which was reverse-engineered and verified against Claude Code 2.1.269. It is not affiliated with or endorsed by Anthropic, and the protocol may change without notice between Claude Code releases.
 
 ## Why
