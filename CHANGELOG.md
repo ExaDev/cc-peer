@@ -1,3 +1,5 @@
+## [1.6.2](https://github.com/ExaDev/cc-peer/compare/v1.6.1...v1.6.2) (2026-10-02)
+
 ## [1.6.1](https://github.com/ExaDev/cc-peer/compare/v1.6.0...v1.6.1) (2026-09-20)
 
 ### Bug Fixes
