@@ -1,3 +1,9 @@
+## [1.6.4](https://github.com/ExaDev/cc-peer/compare/v1.6.3...v1.6.4) (2026-10-05)
+
+### Bug Fixes
+
+* **cli:** parse arguments before starting the peer and REST facade ([9b4f46a](https://github.com/ExaDev/cc-peer/commit/9b4f46a7c605b810d02c785c75111e669c62a496))
+
 ## [1.6.3](https://github.com/ExaDev/cc-peer/compare/v1.6.2...v1.6.3) (2026-10-02)
 
 ## [1.6.2](https://github.com/ExaDev/cc-peer/compare/v1.6.1...v1.6.2) (2026-10-02)
