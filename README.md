@@ -57,6 +57,8 @@ await peer.stop();
 
 Every release is also mirrored to the GitHub Packages registry as `@exadev/cc-peer` (GitHub Packages requires owner-scoped names), and single-executable binaries ship as release assets for every platform/architecture pair Node's own SEA feature supports (see Limitations for the one exception).
 
+`npx cc-peer --help` prints the options: `--port` and `--token` choose the listening port and bearer token, `--no-token` disables authentication, `--name` sets the peer name, and `--home` overrides the home directory holding `.claude`. An unknown option exits non-zero without starting anything.
+
 The REST facade (`npx cc-peer`) serves `GET /sessions`, `POST /messages`, `POST /idle-subscriptions`, `GET /events` (SSE), and a self-describing `GET /openapi.json` on loopback with a bearer token.
 
 ### Session discovery and reply aliases
