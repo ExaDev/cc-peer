@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { spawn } from "node:child_process";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -48,13 +48,12 @@ describe.skipIf(process.platform === "win32")("PsProcInfo", () => {
   });
 
   test("a missing ps binary resolves lstart to undefined", async () => {
-    const realPath = process.env.PATH;
-    process.env.PATH = "/nonexistent-cc-peer-test-bin";
+    vi.stubEnv("PATH", "/nonexistent-cc-peer-test-bin");
     try {
       const fresh = new PsProcInfo();
       expect(await fresh.lstart(process.pid)).toBeUndefined();
     } finally {
-      if (realPath !== undefined) process.env.PATH = realPath;
+      vi.unstubAllEnvs();
     }
   });
 });
@@ -81,7 +80,7 @@ describe("UdsTransport connection lifecycle", () => {
     const home = await tempHome();
     const sockPath = testSocketPath(home, "lifecycle");
     const transport = new UdsTransport();
-    let received: string[] = [];
+    const received: string[] = [];
     let iterationEnded = false;
     const listener = await transport.listen(sockPath, (conn) => {
       expect(conn.peerPid()).toBeUndefined();
@@ -105,7 +104,6 @@ describe("UdsTransport connection lifecycle", () => {
     expect(received).toEqual(['{"type":"auth"}', '{"type":"user"}']);
     expect(iterationEnded).toBe(true);
     await listener.close();
-    received = [];
   });
 
   test("closing the listener destroys an accepted open connection", async () => {

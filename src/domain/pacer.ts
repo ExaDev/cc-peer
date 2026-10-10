@@ -6,8 +6,8 @@ export const DEFAULT_REFILL_PER_SECOND = 0.5;
 const MS_PER_SECOND = 1_000;
 
 export interface PacerOptions {
-  capacity?: number;
-  refillPerSecond?: number;
+  readonly capacity?: number;
+  readonly refillPerSecond?: number;
 }
 
 /**
@@ -15,14 +15,20 @@ export interface PacerOptions {
  */
 export class Pacer {
   private tokens: number;
+
   private lastRefillMs: number;
+
+  private readonly capacity: number;
+
+  private readonly refillPerSecond: number;
 
   constructor(
     private readonly clock: Readonly<Clock>,
-    private readonly capacity: number = DEFAULT_BUCKET_CAPACITY,
-    private readonly refillPerSecond: number = DEFAULT_REFILL_PER_SECOND,
+    options: PacerOptions = {},
   ) {
-    this.tokens = capacity;
+    this.capacity = options.capacity ?? DEFAULT_BUCKET_CAPACITY;
+    this.refillPerSecond = options.refillPerSecond ?? DEFAULT_REFILL_PER_SECOND;
+    this.tokens = this.capacity;
     this.lastRefillMs = clock.nowMs();
   }
 
@@ -30,6 +36,7 @@ export class Pacer {
   msUntilNextToken(): number {
     this.refill();
     const deficit = Math.max(0, 1 - this.tokens);
+
     return Math.ceil((deficit / this.refillPerSecond) * MS_PER_SECOND);
   }
 
@@ -38,6 +45,7 @@ export class Pacer {
     this.refill();
     if (this.tokens < 1) return false;
     this.tokens -= 1;
+
     return true;
   }
 
