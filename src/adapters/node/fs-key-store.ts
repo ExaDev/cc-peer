@@ -23,6 +23,7 @@ export class FsKeyStore implements KeyStore {
       return undefined;
     }
     const result = PeerKeyFileSchema.safeParse(parsed);
+
     return result.success ? result.data : undefined;
   }
 

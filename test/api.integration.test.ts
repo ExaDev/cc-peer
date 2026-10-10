@@ -50,8 +50,8 @@ describe("REST facade", () => {
       const unauthorized = await fetch(`${base}/sessions`);
       expect(unauthorized.status).toBe(401);
 
-      // fetch refuses to override the forbidden Host header, so probe the
-      // DNS-rebinding defence with a raw request that does set it.
+      /* fetch refuses to override the forbidden Host header, so probe the
+         DNS-rebinding defence with a raw request that does set it. */
       const rebinding = await new Promise<number>((resolve) => {
         const req = request(
           `${base}/healthz`,

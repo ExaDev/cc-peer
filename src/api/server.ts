@@ -48,6 +48,7 @@ export async function createApiServer(
   const server = createServer((req, res) => {
     void handle(peer, req, res, token);
   });
+
   return new Promise<ApiServer>((resolve) => {
     server.listen(options.port ?? 0, BIND_HOST, () => {
       const port = listeningPort(server.address());
@@ -84,12 +85,14 @@ async function handle(
   const host = hostnameOf(req.headers.host);
   if (!ALLOWED_HOSTS.has(host)) {
     finish(HTTP_FORBIDDEN, errorBody("host not allowed"));
+
     return;
   }
   if (token !== undefined) {
     const auth = req.headers.authorization ?? "";
     if (auth !== `Bearer ${token}`) {
       finish(HTTP_UNAUTHORIZED, errorBody("unauthorized"));
+
       return;
     }
   }
@@ -97,15 +100,18 @@ async function handle(
   try {
     if (req.method === "GET" && url.pathname === "/healthz") {
       finish(HTTP_OK, JSON.stringify({ ok: true }));
+
       return;
     }
     if (req.method === "GET" && url.pathname === "/openapi.json") {
       finish(HTTP_OK, JSON.stringify(openApiDocument()));
+
       return;
     }
     if (req.method === "GET" && url.pathname === "/sessions") {
       const roster = await peer.roster();
       finish(HTTP_OK, JSON.stringify({ sessions: roster }));
+
       return;
     }
     if (req.method === "POST" && url.pathname === "/messages") {
@@ -121,6 +127,7 @@ async function handle(
           : {}),
       });
       finish(HTTP_ACCEPTED, JSON.stringify(sent));
+
       return;
     }
     if (req.method === "POST" && url.pathname === "/idle-subscriptions") {
@@ -129,10 +136,12 @@ async function handle(
       );
       const sent = await peer.subscribeIdle(toPeerRef(request.to));
       finish(HTTP_ACCEPTED, JSON.stringify(sent));
+
       return;
     }
     if (req.method === "GET" && url.pathname === "/events") {
       streamEvents(peer, req, res);
+
       return;
     }
     finish(HTTP_NOT_FOUND, errorBody("not found"));
@@ -150,6 +159,7 @@ export function listeningPort(address: string | AddressInfo | null): number {
       "expected the server to report an AddressInfo after listen()",
     );
   }
+
   return address.port;
 }
 
@@ -159,6 +169,7 @@ export function listeningPort(address: string | AddressInfo | null): number {
 export function hostnameOf(hostHeader: string | undefined): string {
   if (hostHeader === undefined) return "";
   const colonIndex = hostHeader.indexOf(":");
+
   return colonIndex === -1 ? hostHeader : hostHeader.slice(0, colonIndex);
 }
 
@@ -257,6 +268,7 @@ function openApiDocument(): Record<string, unknown> {
     required: true,
     content: { "application/json": { schema: ref(name) } },
   });
+
   return {
     openapi: "3.1.0",
     info: {

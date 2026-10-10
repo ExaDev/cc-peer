@@ -1,77 +1,13 @@
 {
   "name": "cc-peer",
-  "version": "1.6.5",
   "description": "Communicate with local Claude Code instances over their native cross-session peer messaging: send and receive messages, register as a named discoverable peer, receipts, idle subscriptions, and a REST facade via `npx cc-peer`.",
-  "type": "module",
-  "license": "MIT",
+  "version": "1.6.5",
   "author": "Joseph Mearman <joseph@mearman.co.uk>",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/ExaDev/cc-peer.git"
-  },
-  "homepage": "https://github.com/ExaDev/cc-peer#readme",
-  "bugs": {
-    "url": "https://github.com/ExaDev/cc-peer/issues"
-  },
-  "sideEffects": false,
-  "engines": {
-    "node": ">=20"
-  },
-  "packageManager": "pnpm@12.4.1+sha512.2e81e399d73fe8390dab25e06aa788ab7a5908248d2f5a370f82b481147a6a7a367bf8048f9a6fdb6460f21a66f0542dedb8b94ca2c8723596741920b1656d4c",
   "bin": {
     "cc-peer": "./dist/bin/cc-peer.mjs"
   },
-  "exports": {
-    ".": {
-      "import": {
-        "types": "./dist/cc-peer.d.mts",
-        "default": "./dist/cc-peer.mjs"
-      },
-      "require": {
-        "types": "./dist/cc-peer.d.cts",
-        "default": "./dist/cc-peer.cjs"
-      }
-    },
-    "./alias-pool": {
-      "import": {
-        "types": "./dist/alias-pool.d.mts",
-        "default": "./dist/alias-pool.mjs"
-      },
-      "require": {
-        "types": "./dist/alias-pool.d.cts",
-        "default": "./dist/alias-pool.cjs"
-      }
-    },
-    "./schemas/*.schema.json": "./schemas/*.schema.json",
-    "./package.json": "./package.json"
-  },
-  "main": "./dist/cc-peer.cjs",
-  "types": "./dist/cc-peer.d.mts",
-  "files": [
-    "dist",
-    "schemas",
-    "docs"
-  ],
-  "publishConfig": {
-    "provenance": true,
-    "access": "public"
-  },
-  "scripts": {
-    "build": "turbo run _build",
-    "_build": "tsdown && tsx scripts/generate-json-schema.ts",
-    "lint": "turbo run _lint",
-    "_lint": "eslint . --cache --fix",
-    "typecheck": "turbo run _typecheck",
-    "_typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:unit": "vitest run --project unit",
-    "test:integration": "vitest run --project integration",
-    "test:e2e": "vitest run --config vitest.e2e.config.ts",
-    "test:mutation": "stryker run stryker.config.ts",
-    "prepublishOnly": "pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build && publint && attw --pack --profile node16",
-    "prepare": "husky",
-    "test:coverage": "vitest run --coverage"
+  "bugs": {
+    "url": "https://github.com/ExaDev/cc-peer/issues"
   },
   "dependencies": {
     "zod": "4.5.4"
@@ -109,5 +45,69 @@
     "turbo": "2.11.5",
     "typescript": "6.0.3",
     "vitest": "4.1.11"
-  }
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/cc-peer.d.mts",
+        "default": "./dist/cc-peer.mjs"
+      },
+      "require": {
+        "types": "./dist/cc-peer.d.cts",
+        "default": "./dist/cc-peer.cjs"
+      }
+    },
+    "./alias-pool": {
+      "import": {
+        "types": "./dist/alias-pool.d.mts",
+        "default": "./dist/alias-pool.mjs"
+      },
+      "require": {
+        "types": "./dist/alias-pool.d.cts",
+        "default": "./dist/alias-pool.cjs"
+      }
+    },
+    "./schemas/*.schema.json": "./schemas/*.schema.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "schemas",
+    "docs"
+  ],
+  "homepage": "https://github.com/ExaDev/cc-peer#readme",
+  "license": "MIT",
+  "main": "./dist/cc-peer.cjs",
+  "packageManager": "pnpm@12.4.1+sha512.2e81e399d73fe8390dab25e06aa788ab7a5908248d2f5a370f82b481147a6a7a367bf8048f9a6fdb6460f21a66f0542dedb8b94ca2c8723596741920b1656d4c",
+  "publishConfig": {
+    "provenance": true,
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ExaDev/cc-peer.git"
+  },
+  "scripts": {
+    "_build": "tsdown && tsx scripts/generate-json-schema.ts",
+    "_lint": "eslint . --cache --fix",
+    "_typecheck": "tsc --noEmit",
+    "build": "turbo run _build",
+    "lint": "turbo run _lint",
+    "prepare": "husky",
+    "prepublishOnly": "pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build && publint && attw --pack --profile node16",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "test:integration": "vitest run --project integration",
+    "test:mutation": "stryker run stryker.config.ts",
+    "test:unit": "vitest run --project unit",
+    "test:watch": "vitest",
+    "typecheck": "turbo run _typecheck"
+  },
+  "sideEffects": false,
+  "type": "module",
+  "types": "./dist/cc-peer.d.mts"
 }

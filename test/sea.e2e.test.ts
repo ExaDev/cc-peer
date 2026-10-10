@@ -27,6 +27,7 @@ async function freePort(): Promise<number> {
       probe.close(() => {
         if (address === null || typeof address === "string") {
           reject(new Error("expected the probe server to report a port"));
+
           return;
         }
         resolve(address.port);

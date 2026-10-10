@@ -11,6 +11,7 @@ export function errnoOf(error: unknown): string {
   ) {
     return error.code;
   }
+
   return "";
 }
 
@@ -32,7 +33,9 @@ export class CachedPidCommand {
     number,
     { at: number; value: string | undefined }
   >();
+
   private static readonly CACHE_MS = 60_000;
+
   private readonly inFlight = new Map<number, Promise<string | undefined>>();
 
   async run(
@@ -70,6 +73,7 @@ export class CachedPidCommand {
       this.inFlight.delete(pid);
     });
     this.inFlight.set(pid, promise);
+
     return promise;
   }
 }

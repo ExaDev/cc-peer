@@ -19,6 +19,7 @@ export class WinProcInfo implements ProcInfo {
       "-Command",
       script,
     ]);
+
     return stdout?.trim();
   }
 }

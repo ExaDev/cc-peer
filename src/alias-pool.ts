@@ -44,7 +44,9 @@ interface Deps {
  */
 export class AliasPool extends EventEmitter {
   private readonly active = new Map<string, AliasProcess>();
+
   private readonly pending = new Map<string, Promise<AliasProcess>>();
+
   private readonly log: (message: string) => void;
 
   constructor(
@@ -79,6 +81,7 @@ export class AliasPool extends EventEmitter {
     body: string,
   ): Promise<{ msgId: string }> {
     const proc = await this.acquire(name);
+
     return proc.send(target, body);
   }
 
@@ -117,6 +120,7 @@ export class AliasPool extends EventEmitter {
     });
     this.active.set(name, proc);
     this.log(`alias ${name} active`);
+
     return proc;
   }
 

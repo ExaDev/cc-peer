@@ -35,6 +35,7 @@ export class FsRegistryStore implements RegistryStore {
       const entry = await this.read(Number.parseInt(name, 10));
       if (entry !== undefined) entries.push(entry);
     }
+
     return entries;
   }
 
@@ -52,6 +53,7 @@ export class FsRegistryStore implements RegistryStore {
       return undefined;
     }
     const result = RegistryEntrySchema.safeParse(parsed);
+
     return result.success ? result.data : undefined;
   }
 

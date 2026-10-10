@@ -9,11 +9,14 @@ import { AliasSendCommandSchema } from "../../schemas/alias-ipc.js";
 /** A fake ChildProcess: just enough of the EventEmitter + send() surface for the adapter's own protocol logic, driven manually by each test. */
 class FakeChild extends EventEmitter {
   sent: unknown[] = [];
+
   exitCode: number | null = null;
+
   signalCode: NodeJS.Signals | null = null;
 
   send(message: unknown): boolean {
     this.sent.push(message);
+
     return true;
   }
 
@@ -30,8 +33,10 @@ function makeForkedAliasProcess(child: FakeChild): {
   const forkCalls: unknown[][] = [];
   const fork = vi.fn((modulePath: string, args: unknown, options: unknown) => {
     forkCalls.push([modulePath, args, options]);
+
     return child as unknown as ChildProcess;
   });
+
   return {
     process: new ForkedAliasProcess({
       fork: fork as never,
@@ -203,6 +208,7 @@ function lastSendRequestId(child: FakeChild): string {
   if (!AliasSendCommandSchema.is(command)) {
     throw new Error("the last IPC command was not a send command");
   }
+
   return command.requestId;
 }
 
@@ -215,6 +221,7 @@ async function startedProcess(): Promise<{
   const pending = proc.start({ name: "alice" });
   child.emit("message", { type: "started" });
   await pending;
+
   return { child, proc };
 }
 

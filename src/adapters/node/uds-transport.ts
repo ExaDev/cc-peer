@@ -11,9 +11,13 @@ const DEFAULT_LINGER_MS = 150;
 
 class NodeInboundConnection implements InboundConnection {
   private buffer = "";
+
   private readonly lines: string[] = [];
+
   private readonly waiters: ((line: string | undefined) => void)[] = [];
+
   private ended = false;
+
   /** macOS local-peer pid, captured from the first data chunk's control info. */
   private cachedPid: number | undefined;
 
@@ -137,6 +141,7 @@ export class UdsTransport implements Transport {
         resolve();
       });
     });
+
     return {
       socketPath,
       close: async () => {

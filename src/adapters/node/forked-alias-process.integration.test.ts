@@ -72,6 +72,7 @@ async function readAliasKey(
     throw new Error(`no key file found for socket ${socketPath}`);
   }
   const raw = await readFile(join(sessionsDir, match), "utf8");
+
   return JSON.parse(raw) as PeerKeyFile;
 }
 

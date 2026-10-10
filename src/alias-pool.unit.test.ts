@@ -23,17 +23,25 @@ describe("workerExtensionFor", () => {
 /** A fake AliasProcess whose start()/stop() are externally controllable, so tests can assert ordering and concurrency without a real child process. */
 class FakeAliasProcess implements AliasProcess {
   readonly events = new EventEmitter();
+
   startCalls: unknown[] = [];
+
   sendCalls: { target: Readonly<PeerRef>; body: string }[] = [];
+
   stopCalls = 0;
+
   private resolveStart: (() => void) | undefined;
+
   private rejectStart: ((error: Error) => void) | undefined;
+
   private resolveSend:
     ((result: Readonly<{ msgId: string }>) => void) | undefined;
+
   private rejectSend: ((error: Error) => void) | undefined;
 
   async start(options: unknown): Promise<void> {
     this.startCalls.push(options);
+
     return new Promise<void>((resolve, reject) => {
       this.resolveStart = resolve;
       this.rejectStart = reject;
@@ -45,6 +53,7 @@ class FakeAliasProcess implements AliasProcess {
     body: string,
   ): Promise<{ msgId: string }> {
     this.sendCalls.push({ target, body });
+
     return new Promise<{ msgId: string }>((resolve, reject) => {
       this.resolveSend = resolve;
       this.rejectSend = reject;
@@ -53,6 +62,7 @@ class FakeAliasProcess implements AliasProcess {
 
   async stop(): Promise<void> {
     this.stopCalls += 1;
+
     return Promise.resolve();
   }
 
@@ -84,8 +94,10 @@ function makePool(procs: readonly FakeAliasProcess[]): {
     if (proc === undefined) {
       throw new Error("makePool: not enough fake processes provided");
     }
+
     return proc;
   });
+
   return {
     pool: new AliasPool({ spawn }),
     spawnCount: () => spawn.mock.calls.length,
@@ -108,6 +120,7 @@ describe("AliasPool.ensure", () => {
     let index = 0;
     const spawn = vi.fn(() => {
       index += 1;
+
       return proc;
     });
     const pool = new AliasPool(
