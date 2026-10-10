@@ -13,6 +13,7 @@ export function appendHop(
   ownId: string,
 ): string[] {
   const next = [...(chain ?? []), ownId];
+
   return next.slice(Math.max(0, next.length - MAX_HOP_CHAIN_ENTRIES));
 }
 
@@ -37,5 +38,6 @@ export function checkChain(
   if (selfHops >= MAX_SELF_HOPS) {
     return { admitted: false, reason: "hop-loop" };
   }
+
   return { admitted: true };
 }

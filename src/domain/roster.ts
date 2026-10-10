@@ -29,6 +29,7 @@ export async function filterRoster(
   const verdicts = await Promise.all(
     entries.map(async (entry) => checkEntry(entry, probes)),
   );
+
   return verdicts.filter((v) => v.admitted).map((v) => v.entry);
 }
 
@@ -57,5 +58,6 @@ export async function checkEntry(
   if (!connectable) {
     return { entry, admitted: false, reason: "socket-dead" };
   }
+
   return { entry, admitted: true };
 }

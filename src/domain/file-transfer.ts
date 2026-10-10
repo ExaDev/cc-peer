@@ -54,6 +54,7 @@ export async function stageFile(
     `${sha256.slice(0, ID_PREFIX_CHARS)}-${randomUUID().slice(0, ID_PREFIX_CHARS)}-${safeName(basename(sourcePath))}`,
   );
   await writeFile(staged, bytes, { mode: 0o600 });
+
   return {
     path: staged,
     file_name: basename(sourcePath),
@@ -106,6 +107,7 @@ export async function materialiseAttachment(
   await mkdir(dirname(dest), { recursive: true, mode: 0o700 });
   await copyFile(absolute, dest);
   await unlink(absolute);
+
   return { uploadPath: dest, mention: `@"${dest}"` };
 }
 
@@ -118,6 +120,7 @@ export function capAttachments(attachments: readonly FileAttachment[]): {
     return { kept: [...attachments], droppedNote: undefined };
   }
   const dropped = attachments.length - MAX_ATTACHMENTS_PER_MESSAGE;
+
   return {
     kept: attachments.slice(0, MAX_ATTACHMENTS_PER_MESSAGE),
     droppedNote: `[SendFile: ${dropped.toString()} additional attachment(s) were dropped — max ${MAX_ATTACHMENTS_PER_MESSAGE.toString()} per message]`,

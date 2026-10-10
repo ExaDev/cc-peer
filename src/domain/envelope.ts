@@ -45,11 +45,13 @@ function serializeAttributes(attrs: EnvelopeAttributes): string {
   if (attrs.fromMode !== undefined) {
     parts.push(` from-mode="${attrs.fromMode}"`);
   }
+
   return parts.join("");
 }
 
 export function buildEnvelope(attrs: EnvelopeAttributes, body: string): string {
   const validated = EnvelopeAttributesSchema.parse(attrs);
+
   return `<${TAG}${serializeAttributes(validated)}>\n${escapeBody(body)}\n</${TAG}>`;
 }
 
@@ -66,8 +68,8 @@ export interface ParsedEnvelope {
 export function parseEnvelope(content: string): ParsedEnvelope | undefined {
   const match = ENVELOPE_RE.exec(content);
   if (match === null) return undefined;
-  // The body is derived positionally from the validated content rather than read from a capture group: attribute grammars bar ">" and newlines, so the first ">\n" is the opening tag's end, and the regex anchor guarantees the "\n</tag>" suffix. This avoids an index access that
-  // noUncheckedIndexedAccess would type string | undefined.
+  /* The body is derived positionally from the validated content rather than read from a capture group: attribute grammars bar ">" and newlines, so the first ">\n" is the opening tag's end, and the regex anchor guarantees the "\n</tag>" suffix. This avoids an index access that
+     noUncheckedIndexedAccess would type string | undefined. */
   const openingEnd = content.indexOf(">\n") + 2;
   const closingStart = content.length - `\n</${TAG}>`.length;
   const parsed: ParsedEnvelope = {
@@ -80,6 +82,7 @@ export function parseEnvelope(content: string): ParsedEnvelope | undefined {
   if (match[5] === "bypass" || match[5] === "prompting") {
     parsed.fromMode = match[5];
   }
+
   return parsed;
 }
 
@@ -101,5 +104,6 @@ export function assertRoundTrips(content: string): boolean {
     },
     parsed.body,
   );
+
   return rebuilt === content;
 }

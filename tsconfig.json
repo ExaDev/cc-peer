@@ -1,22 +1,22 @@
 {
   "compilerOptions": {
-    "target": "ES2024",
+    "exactOptionalPropertyTypes": true,
+    "forceConsistentCasingInFileNames": true,
+    "incremental": true,
+    "isolatedModules": true,
+    "lib": ["ES2024"],
     "module": "NodeNext",
     "moduleResolution": "nodenext",
-    "lib": ["ES2024"],
-    "types": ["node"],
-    "strict": true,
-    "resolveJsonModule": true,
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
     "noEmit": true,
-    "incremental": true,
-    "tsBuildInfoFile": ".tsbuildinfo",
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "noUncheckedIndexedAccess": true,
+    "resolveJsonModule": true,
     "skipLibCheck": true,
-    "isolatedModules": true,
-    "forceConsistentCasingInFileNames": true
+    "strict": true,
+    "target": "ES2024",
+    "tsBuildInfoFile": ".tsbuildinfo",
+    "types": ["node"]
   },
   "include": ["src", "test", "scripts", "*.ts"]
 }

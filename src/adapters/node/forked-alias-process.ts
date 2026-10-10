@@ -35,9 +35,13 @@ export interface ForkedAliasProcessDeps {
  */
 export class ForkedAliasProcess implements AliasProcess {
   readonly events = new EventEmitter();
+
   private readonly forkFn: typeof fork;
+
   private readonly workerPath: string;
+
   private readonly pendingSends = new Map<string, PendingSend>();
+
   private child: ChildProcess | undefined;
 
   constructor(deps: Readonly<ForkedAliasProcessDeps>) {
@@ -51,6 +55,7 @@ export class ForkedAliasProcess implements AliasProcess {
     child.on("message", (raw: unknown) => {
       if (AliasMessageEventSchema.is(raw)) {
         this.events.emit("message", toInboundMessage(raw));
+
         return;
       }
       this.settleSend(raw);
@@ -102,6 +107,7 @@ export class ForkedAliasProcess implements AliasProcess {
       throw new AliasSendError("alias worker is not running");
     }
     const requestId = newMsgId();
+
     return new Promise<{ msgId: string }>((resolve, reject) => {
       this.pendingSends.set(requestId, { resolve, reject });
       child.send({ type: "send", requestId, target, body });
@@ -112,6 +118,7 @@ export class ForkedAliasProcess implements AliasProcess {
   private settleSend(raw: unknown): void {
     if (AliasSentEventSchema.is(raw)) {
       this.takePendingSend(raw.requestId)?.resolve({ msgId: raw.msgId });
+
       return;
     }
     if (AliasSendFailedEventSchema.is(raw)) {
@@ -124,6 +131,7 @@ export class ForkedAliasProcess implements AliasProcess {
   private takePendingSend(requestId: string): PendingSend | undefined {
     const pending = this.pendingSends.get(requestId);
     this.pendingSends.delete(requestId);
+
     return pending;
   }
 
@@ -140,6 +148,7 @@ export class ForkedAliasProcess implements AliasProcess {
     const child = this.child;
     if (child === undefined) return undefined;
     if (child.exitCode !== null || child.signalCode !== null) return undefined;
+
     return child;
   }
 

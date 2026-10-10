@@ -15,7 +15,9 @@ export function testSocketPath(home: string, label: string): string {
       .update(home)
       .digest("hex")
       .slice(0, NAMESPACE_HEX_LENGTH);
+
     return `\\\\.\\pipe\\cc-peer-test-${namespace}-${label}`;
   }
+
   return join(home, `${label}.sock`);
 }

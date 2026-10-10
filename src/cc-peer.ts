@@ -99,10 +99,15 @@ const DEFAULT_HEARTBEAT_MS = 15_000;
  */
 export class CcPeer extends EventEmitter {
   private listening: ListeningSocket | undefined;
+
   private heartbeatTimer: NodeJS.Timeout | undefined;
+
   private ownKey: PeerKeyFile | undefined;
+
   private readonly pacer: Pacer;
+
   private readonly log: (message: string) => void;
+
   private stopped = false;
 
   constructor(
@@ -123,6 +128,7 @@ export class CcPeer extends EventEmitter {
       clock: new SystemClock(),
     });
     await peer.start();
+
     return peer;
   }
 
@@ -160,6 +166,7 @@ export class CcPeer extends EventEmitter {
   /** procStart is a required parameter, not read from this.ownKey: start() already guarantees a non-empty value before this is called, so the type checker enforces it rather than a runtime fallback that can never actually fire. */
   private buildRegistryEntry(procStart: string): RegistryEntry {
     const now = this.deps.clock.nowMs();
+
     return {
       pid: process.pid,
       sessionId: this.options.sessionId ?? newMsgId(),
@@ -189,6 +196,7 @@ export class CcPeer extends EventEmitter {
 
   async roster(): Promise<RegistryEntry[]> {
     const entries = await this.deps.registry.list();
+
     return filterRoster(entries, {
       transport: this.deps.transport,
       procInfo: this.deps.procInfo,
@@ -251,6 +259,7 @@ export class CcPeer extends EventEmitter {
       );
     }
     await this.pacedSend(socketPath, [JSON.stringify(auth), line]);
+
     return { msgId };
   }
 
@@ -299,6 +308,7 @@ export class CcPeer extends EventEmitter {
       JSON.stringify(auth),
       JSON.stringify(frame),
     ]);
+
     return { msgId };
   }
 
@@ -312,6 +322,7 @@ export class CcPeer extends EventEmitter {
     if (match === undefined) {
       throw new UnknownPeerError(`no roster entry named ${target.name}`);
     }
+
     return match.messagingSocketPath;
   }
 
@@ -334,6 +345,7 @@ export class CcPeer extends EventEmitter {
       if (!authenticated) {
         this.log("inbound auth line missing or mismatched (connection closed)");
         conn.close();
+
         return;
       }
     } else if (!authenticated) {

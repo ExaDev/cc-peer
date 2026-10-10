@@ -1,6 +1,6 @@
-// Builds a Node single-executable application (SEA) binary from this repository's tsdown-bundled dist-sea/sea-entry.cjs (see tsdown.config.ts's seaEntryBuildConfig), for whichever platform this script runs on — one call per platform cell of the CI matrix, never cross-compiled: node --build-sea copies the CURRENT running node binary, so the platform this script runs under is the platform the resulting binary targets. Uses the single `node --build-sea` flag (Node 25.5.0+, https://nodejs.org/api/single-executable-applications.html), not the older two-step --experimental-sea-config-then-postject workflow that flag replaced: --build-sea generates the preparation blob and injects it into a copy of the running binary in one internal step, writing the finished executable straight to sea-config.json's own "output" path.
-//
-// Pattern follows ExaDev/documents.js's .github/scripts/build-sea-binary.ts, which proved each of the non-obvious steps below in real CI runs.
+/* Builds a Node single-executable application (SEA) binary from this repository's tsdown-bundled dist-sea/sea-entry.cjs (see tsdown.config.ts's seaEntryBuildConfig), for whichever platform this script runs on — one call per platform cell of the CI matrix, never cross-compiled: node --build-sea copies the CURRENT running node binary, so the platform this script runs under is the platform the resulting binary targets. Uses the single `node --build-sea` flag (Node 25.5.0+, https://nodejs.org/api/single-executable-applications.html), not the older two-step --experimental-sea-config-then-postject workflow that flag replaced: --build-sea generates the preparation blob and injects it into a copy of the running binary in one internal step, writing the finished executable straight to sea-config.json's own "output" path.
+
+   Pattern follows ExaDev/documents.js's .github/scripts/build-sea-binary.ts, which proved each of the non-obvious steps below in real CI runs. */
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -29,6 +29,7 @@ function binaryFileName(
   arch: SeaArch,
 ): string {
   const suffixed = `${binaryName}-${PLATFORM_LABELS[platform]}-${arch}`;
+
   return platform === "win32" ? `${suffixed}.exe` : suffixed;
 }
 
@@ -40,6 +41,7 @@ function postBuildCommandsFor(
   if (platform === "darwin") {
     return [["codesign", ["--sign", "-", "--force", binaryPath]]];
   }
+
   return [];
 }
 
@@ -57,6 +59,7 @@ function assertBundle(): string {
       `Expected ${BUNDLE_PATH} to exist — run this repository's own build (which produces dist-sea/) first.`,
     );
   }
+
   return BUNDLE_PATH;
 }
 

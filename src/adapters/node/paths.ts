@@ -25,9 +25,10 @@ export function socketDirCandidates(
   config: Readonly<PathConfig> = {},
 ): [string, ...string[]] {
   if (config.socketDir !== undefined) return [config.socketDir];
-  // /tmp/cc-socks and /private/tmp/cc-socks (its realpath on macOS), plus the
-  // XDG runtime and Termux variants the reference client also accepts.
+  /* /tmp/cc-socks and /private/tmp/cc-socks (its realpath on macOS), plus the
+     XDG runtime and Termux variants the reference client also accepts. */
   const runtimeDir = process.env.XDG_RUNTIME_DIR;
+
   return [
     "/tmp/cc-socks",
     "/private/tmp/cc-socks",
@@ -64,12 +65,14 @@ export function socketPathForPid(
       config.socketDir === undefined
         ? ""
         : `-${pipeNamespace(config.socketDir)}`;
+
     return `${WINDOWS_PIPE_PREFIX}cc-peer${namespace}-${pid.toString()}`;
   }
   // An explicit socketDir always wins on POSIX, matching socketDirCandidates' own precedence rule: it is a full override of automatic path construction, not merely a candidate to prefer.
   if (config.socketDir !== undefined) {
     return `${config.socketDir}/${pid.toString()}.sock`;
   }
+
   return `${socketDirCandidates(config)[0]}/${pid.toString()}.sock`;
 }
 
@@ -86,6 +89,7 @@ export function keyFilePath(
   config: Readonly<PathConfig> = {},
 ): string {
   const hash = createHash("sha256").update(socketPath).digest("hex");
+
   return join(
     sessionsDir(config),
     `${pidFromSocketPath(socketPath).toString()}.${hash}.key`,
@@ -97,11 +101,13 @@ export function pidFromSocketPath(socketPath: string): number {
   if (socketPath.startsWith(WINDOWS_PIPE_PREFIX)) {
     const name = socketPath.slice(WINDOWS_PIPE_PREFIX.length);
     const pid = Number.parseInt(name.slice(name.lastIndexOf("-") + 1), 10);
+
     return Number.isNaN(pid) ? 0 : pid;
   }
   // substring after the final slash: split().at(-1) would need an unreachable empty-array fallback.
   const base = socketPath.substring(socketPath.lastIndexOf("/") + 1);
   const pid = Number.parseInt(base.replace(/\.sock$/, ""), 10);
+
   return Number.isNaN(pid) ? 0 : pid;
 }
 

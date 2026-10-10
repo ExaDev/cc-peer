@@ -18,6 +18,7 @@ export class PsProcInfo implements ProcInfo {
       "-p",
       pid.toString(),
     ]);
+
     return stdout?.trim();
   }
 }

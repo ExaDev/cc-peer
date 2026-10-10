@@ -78,6 +78,7 @@ export function parseArgs(argv: readonly string[]): CliCommand {
       args.home = value;
     }
   }
+
   return { kind: "run", args };
 }
 
@@ -91,6 +92,7 @@ export async function main(
   const command = parseArgs(argv);
   if (command.kind === "help") {
     process.stdout.write(USAGE);
+
     return;
   }
   if (command.kind === "error") {
@@ -98,6 +100,7 @@ export async function main(
       `[cc-peer] ${command.message}\nRun 'cc-peer --help' for usage.\n`,
     );
     process.exitCode = 2;
+
     return;
   }
   const { args } = command;

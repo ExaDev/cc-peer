@@ -136,6 +136,7 @@ export function componentSchemasFrom(
     delete rest.$schema;
     stripped[name] = rest;
   }
+
   return stripped;
 }
 

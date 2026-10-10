@@ -35,10 +35,12 @@ async function handleCommand(raw: unknown): Promise<void> {
   if (!AliasCommandSchema.is(raw)) return;
   if (raw.type === "stop") {
     await shutdown();
+
     return;
   }
   if (raw.type === "send") {
     await handleSend(raw);
+
     return;
   }
   let created: CcPeer;
@@ -51,6 +53,7 @@ async function handleCommand(raw: unknown): Promise<void> {
     });
   } catch {
     process.exit(1);
+
     return;
   }
   peer = created;
@@ -69,6 +72,7 @@ async function handleSend(command: Readonly<AliasSendCommand>): Promise<void> {
       code: "NOT_STARTED",
       message: "alias peer has not started",
     });
+
     return;
   }
   try {
