@@ -29,12 +29,17 @@ async function tempHome(): Promise<string> {
   return mkdtemp(join(tmpdir(), "cc-peer-class-"));
 }
 
-function peerOptions(home: string, name?: string, sessionId?: string) {
+function peerOptions(
+  home: string,
+  identity: Readonly<{ name?: string; sessionId?: string }> = {},
+) {
   return {
     homeDir: home,
     socketDir: join(home, "socks"),
-    ...(name !== undefined ? { name } : {}),
-    ...(sessionId !== undefined ? { sessionId } : {}),
+    ...(identity.name !== undefined ? { name: identity.name } : {}),
+    ...(identity.sessionId !== undefined
+      ? { sessionId: identity.sessionId }
+      : {}),
   };
 }
 
@@ -50,7 +55,7 @@ function makePeer(
 ): CcPeer {
   return new CcPeer(
     {
-      ...peerOptions(home, overrides.name, overrides.sessionId),
+      ...peerOptions(home, overrides),
       ...(overrides.heartbeatMs !== undefined
         ? { heartbeatMs: overrides.heartbeatMs }
         : {}),
@@ -80,6 +85,7 @@ async function rawClient(peer: CcPeer, socketPath?: string): Promise<Socket> {
     socketPath ?? socketPathForPid(process.pid, peerOptions(tempHomeOf(peer)));
   const socket = connect(path);
   await once(socket, "connect");
+
   return socket;
 }
 
@@ -137,6 +143,7 @@ describe("CcPeer dependency-injected construction", () => {
       transport: {
         listen: async (path) => {
           listenedPath = path;
+
           return Promise.resolve({
             socketPath: path,
             close: async () => Promise.resolve(),
@@ -397,6 +404,7 @@ async function keyedTarget(home: string): Promise<string> {
     pidDomain: "darwin",
   });
   targetsToClose.push(listener);
+
   return targetPath;
 }
 
@@ -406,8 +414,8 @@ describe("CcPeer send happy paths by pid and address", () => {
     const peer = makePeer(home);
     await peer.start();
     const keys = new FsKeyStore({ homeDir: home });
-    // A target pid distinct from our own so the resolved socket path does
-    // not collide with the sender's own listening socket.
+    /* A target pid distinct from our own so the resolved socket path does
+       not collide with the sender's own listening socket. */
     const TARGET_PID = 88001;
     const pidPath = socketPathForPid(TARGET_PID, {
       socketDir: join(home, "socks"),
@@ -475,9 +483,9 @@ describe("CcPeer send happy paths by pid and address", () => {
     receiver.on("message", (m) => {
       messages.push(m);
     });
-    // Both peers share one pid, so the single registry file holds whichever
-    // peer started last: the receiver, which is exactly what the sender's
-    // name resolution needs to find.
+    /* Both peers share one pid, so the single registry file holds whichever
+       peer started last: the receiver, which is exactly what the sender's
+       name resolution needs to find. */
     await sender.send({ name: "opt-receiver" }, "attested default");
     await sender.send({ name: "opt-receiver" }, "prompting", {
       fromMode: "prompting",
@@ -511,9 +519,9 @@ describe("CcPeer send happy paths by pid and address", () => {
     await peer.start();
     const target = await keyedTarget(home);
     const started = Date.now();
-    // Concurrent sends exhaust the bucket faster than the 0.5/s refill can
-    // top it up (serial sends each pay connectWrite's 150ms linger, letting
-    // the refill mask the exhaustion).
+    /* Concurrent sends exhaust the bucket faster than the 0.5/s refill can
+       top it up (serial sends each pay connectWrite's 150ms linger, letting
+       the refill mask the exhaustion). */
     await Promise.all(
       Array.from({ length: PACER_CAPACITY + 1 }, async (_, i) =>
         peer.send({ address: target }, "burst " + i.toString()),

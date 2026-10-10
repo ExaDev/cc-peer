@@ -11,9 +11,11 @@ const NO_START = "no-start";
 
 class FakeClock {
   constructor(private now: number) {}
+
   nowMs(): number {
     return this.now;
   }
+
   advance(ms: number): void {
     this.now += ms;
   }
@@ -22,7 +24,7 @@ class FakeClock {
 describe("Pacer", () => {
   test("refills tokens over elapsed time and blocks until one is available", () => {
     const clock = new FakeClock(1_000_000);
-    const pacer = new Pacer(clock, 2, 0.5);
+    const pacer = new Pacer(clock, { capacity: 2, refillPerSecond: 0.5 });
     expect(pacer.tryReserve()).toBe(true);
     expect(pacer.tryReserve()).toBe(true);
     expect(pacer.tryReserve()).toBe(false);
@@ -40,20 +42,23 @@ describe("Pacer", () => {
 
   test("capacity caps the refill", () => {
     const clock = new FakeClock(0);
-    const pacer = new Pacer(clock, 1, 1);
+    const pacer = new Pacer(clock, { capacity: 1, refillPerSecond: 1 });
     clock.advance(60_000);
     expect(pacer.tryReserve()).toBe(true);
     expect(pacer.tryReserve()).toBe(false);
   });
 
   test("msUntilNextToken is zero while tokens remain", () => {
-    const pacer = new Pacer(new FakeClock(0), 3, 0.5);
+    const pacer = new Pacer(new FakeClock(0), {
+      capacity: 3,
+      refillPerSecond: 0.5,
+    });
     expect(pacer.msUntilNextToken()).toBe(0);
   });
 
   test("msUntilNextToken refills from elapsed time on its own, without a prior tryReserve", () => {
     const clock = new FakeClock(0);
-    const pacer = new Pacer(clock, 1, 1);
+    const pacer = new Pacer(clock, { capacity: 1, refillPerSecond: 1 });
     expect(pacer.tryReserve()).toBe(true);
     clock.advance(1_000);
     expect(pacer.msUntilNextToken()).toBe(0);
@@ -61,7 +66,7 @@ describe("Pacer", () => {
 
   test("msUntilNextToken reports the exact wait for a fractional deficit", () => {
     const clock = new FakeClock(0);
-    const pacer = new Pacer(clock, 1, 1);
+    const pacer = new Pacer(clock, { capacity: 1, refillPerSecond: 1 });
     expect(pacer.tryReserve()).toBe(true);
     clock.advance(500);
     expect(pacer.msUntilNextToken()).toBe(500);
@@ -69,7 +74,7 @@ describe("Pacer", () => {
 
   test("refill ignores a clock that moves backward rather than draining tokens", () => {
     const clock = new FakeClock(10_000);
-    const pacer = new Pacer(clock, 1, 1);
+    const pacer = new Pacer(clock, { capacity: 1, refillPerSecond: 1 });
     expect(pacer.tryReserve()).toBe(true);
     clock.advance(-5_000);
     expect(pacer.msUntilNextToken()).toBe(1_000);
@@ -116,6 +121,7 @@ function probes(
     Promise.resolve(overrides.alive ?? true);
   const probe = async (): Promise<boolean> =>
     Promise.resolve(overrides.probe ?? true);
+
   return {
     transport: { probe },
     procInfo: { alive, lstart },
