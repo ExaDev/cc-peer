@@ -1,7 +1,7 @@
 {
   "name": "cc-peer",
   "description": "Communicate with local Claude Code instances over their native cross-session peer messaging: send and receive messages, register as a named discoverable peer, receipts, idle subscriptions, and a REST facade via `npx cc-peer`.",
-  "version": "1.6.6",
+  "version": "1.6.7",
   "author": "Joseph Mearman <joseph@mearman.co.uk>",
   "bin": {
     "cc-peer": "./dist/bin/cc-peer.mjs"
