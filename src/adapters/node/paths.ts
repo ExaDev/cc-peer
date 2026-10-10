@@ -20,14 +20,23 @@ export function isWindows(): boolean {
  * callers can index [0] without a fallback branch. Meaningless on Windows,
  * where a named pipe has no filesystem directory of its own — callers there
  * use socketPathForPid directly instead of building a path from a directory.
+ * An explicit socketDir always overrides this order entirely, on every
+ * platform.
  */
 export function socketDirCandidates(
   config: Readonly<PathConfig> = {},
 ): [string, ...string[]] {
   if (config.socketDir !== undefined) return [config.socketDir];
   /* /tmp/cc-socks and /private/tmp/cc-socks (its realpath on macOS), plus the
-     XDG runtime and Termux variants the reference client also accepts. */
+     XDG runtime variant the reference client also accepts. */
   const runtimeDir = process.env.XDG_RUNTIME_DIR;
+
+  /* Linux Claude Code sessions bind under $XDG_RUNTIME_DIR/cc-socks, not
+     /tmp/cc-socks, so it has to be tried first there. Elsewhere the fixed
+     /tmp path still comes first, with the runtime dir kept as a fallback. */
+  if (process.platform === "linux" && runtimeDir !== undefined) {
+    return [`${runtimeDir}/cc-socks`, "/tmp/cc-socks", "/private/tmp/cc-socks"];
+  }
 
   return [
     "/tmp/cc-socks",

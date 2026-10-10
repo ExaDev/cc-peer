@@ -15,6 +15,7 @@ import { FsKeyStore } from "./fs-key-store.js";
 import { FsRegistryStore } from "./fs-registry-store.js";
 import { keyFilePath } from "./paths.js";
 import { withPlatform } from "../../test/with-platform.js";
+import { withEnv } from "../../test/with-env.js";
 
 async function tempHome(): Promise<string> {
   return mkdtemp(join(tmpdir(), "cc-peer-ad-"));
@@ -35,20 +36,18 @@ describe("errnoOf", () => {
 });
 
 describe("paths", () => {
-  test("XDG_RUNTIME_DIR adds a candidate and is absent by default order", () => {
-    const had = process.env.XDG_RUNTIME_DIR;
-    delete process.env.XDG_RUNTIME_DIR;
-    expect(socketDirCandidates()).toHaveLength(2);
-    process.env.XDG_RUNTIME_DIR = "/xdg-run";
-    try {
-      expect(socketDirCandidates().at(-1)).toBe("/xdg-run/cc-socks");
-    } finally {
-      if (had === undefined) {
-        delete process.env.XDG_RUNTIME_DIR;
-      } else {
-        process.env.XDG_RUNTIME_DIR = had;
-      }
-    }
+  test("XDG_RUNTIME_DIR adds a candidate and is absent by default order", async () => {
+    await withEnv("XDG_RUNTIME_DIR", undefined, () => {
+      expect(socketDirCandidates()).toHaveLength(2);
+    });
+    /* Off Linux the runtime dir is a trailing fallback, after the fixed
+       /tmp candidates; on Linux it is tried first instead (its own test
+       in adapters.unit.test.ts), since that's where Claude Code binds it. */
+    await withEnv("XDG_RUNTIME_DIR", "/xdg-run", async () => {
+      await withPlatform("darwin", () => {
+        expect(socketDirCandidates().at(-1)).toBe("/xdg-run/cc-socks");
+      });
+    });
   });
 
   test("pidFromSocketPath returns 0 for a non-numeric basename", () => {
