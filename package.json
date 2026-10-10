@@ -10,7 +10,7 @@
     "url": "https://github.com/ExaDev/cc-peer/issues"
   },
   "dependencies": {
-    "zod": "4.5.4"
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@anthropic-ai/claude-code": "2.1.261",
