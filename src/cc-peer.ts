@@ -8,6 +8,7 @@ import { FsKeyStore } from "./adapters/node/fs-key-store.js";
 import { FsRegistryStore } from "./adapters/node/fs-registry-store.js";
 import { PsProcInfo } from "./adapters/node/ps-proc-info.js";
 import { WinProcInfo } from "./adapters/node/win-proc-info.js";
+import { LinuxProcInfo } from "./adapters/node/linux-proc-info.js";
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import {
@@ -48,6 +49,14 @@ export const CC_PEER_VERSION: string = packageJson.version;
 
 /** Default log sink: logs go nowhere unless a logger is provided. */
 const sinkLog = (): void => undefined;
+
+/** Picks the real process-info adapter for the current platform. Exported for direct unit coverage of the selection itself, separate from each adapter's own behaviour. */
+export function selectProcInfo(): ProcInfo {
+  if (isWindows()) return new WinProcInfo();
+  if (process.platform === "linux") return new LinuxProcInfo();
+
+  return new PsProcInfo();
+}
 
 /** How a target can be addressed. */
 export type PeerRef = { pid: number } | { name: string } | { address: string };
@@ -124,7 +133,7 @@ export class CcPeer extends EventEmitter {
       transport: new UdsTransport(),
       registry: new FsRegistryStore(options),
       keys: new FsKeyStore(options),
-      procInfo: isWindows() ? new WinProcInfo() : new PsProcInfo(),
+      procInfo: selectProcInfo(),
       clock: new SystemClock(),
     });
     await peer.start();

@@ -9,6 +9,8 @@ import {
   pidFromSocketPath,
   socketDirCandidates,
 } from "./paths.js";
+import { withPlatform } from "../../test/with-platform.js";
+import { withEnv } from "../../test/with-env.js";
 
 async function tempHome(): Promise<string> {
   return mkdtemp(join(tmpdir(), "cc-peer-test-"));
@@ -74,9 +76,22 @@ describe("FsRegistryStore", () => {
 });
 
 describe("paths", () => {
-  test("derives pid from socket path and lists candidate dirs", () => {
+  test("derives pid from socket path and lists candidate dirs", async () => {
     expect(pidFromSocketPath("/tmp/cc-socks/4242.sock")).toBe(4242);
     expect(socketDirCandidates({ socketDir: "/custom" })).toEqual(["/custom"]);
-    expect(socketDirCandidates()[0]).toBe("/tmp/cc-socks");
+    await withPlatform("darwin", () => {
+      expect(socketDirCandidates()[0]).toBe("/tmp/cc-socks");
+    });
+  });
+
+  test("puts $XDG_RUNTIME_DIR first on Linux, but an explicit socketDir still wins", async () => {
+    await withEnv("XDG_RUNTIME_DIR", "/run/user/0", async () => {
+      await withPlatform("linux", () => {
+        expect(socketDirCandidates()[0]).toBe("/run/user/0/cc-socks");
+        expect(socketDirCandidates({ socketDir: "/custom" })).toEqual([
+          "/custom",
+        ]);
+      });
+    });
   });
 });
